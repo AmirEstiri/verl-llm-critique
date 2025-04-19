@@ -2,17 +2,17 @@ set -x
 
 #export VLLM_ATTENTION_BACKEND=XFORMERS
 
-gsm8k_train_path=data/gsm8k/train.parquet
-gsm8k_test_path=data/gsm8k/test.parquet
+aurix_train_path=data/gsm8k/train.parquet
+aurix_test_path=data/gsm8k/test.parquet
 model_path=Qwen/Qwen2-7B-Instruct
 
-train_files="['$gsm8k_train_path']"
-test_files="['$gsm8k_test_path']"
+train_files="['$aurix_train_path']"
+test_files="['$aurix_test_path']"
 
 PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
-    custom_reward_function.name=simple_test_reward \
-    custom_reward_function.path=rewards/reward_test.py \
+    custom_reward_function.name=all_reward_functions \
+    custom_reward_function.path=rewards/reward_reasoning.py \
     data.train_files="$train_files" \
     data.val_files="$test_files" \
     data.train_batch_size=1024 \

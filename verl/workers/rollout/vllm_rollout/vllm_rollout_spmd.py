@@ -313,4 +313,8 @@ class vLLMRollout(BaseRollout):
         if vllm_version in ("0.3.1", "0.4.2", "0.5.4", "0.6.3") and self.config.free_cache_engine:
             self.inference_engine.free_cache_engine()
 
+        print("BATCH", batch)
+        print("NON_TENSOR_BATCH", non_tensor_batch)
+        print("SPMD")
+        breakpoint()
         return DataProto(batch=batch, non_tensor_batch=non_tensor_batch)

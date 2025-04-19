@@ -24,6 +24,16 @@ Example output:
 ... your score between 0 and 4 ...
 </score>"""
 
+
+def all_reward_functions(data_source, solution_str, ground_truth, extra_info=None):
+    return sum(
+        [
+			reward_output_approximate_formatting(data_source, solution_str, ground_truth, extra_info),
+			reward_output_exact_formatting(data_source, solution_str, ground_truth, extra_info),
+			reward_references_formatting(data_source, solution_str, ground_truth, extra_info),
+    	]
+    )
+
 def reward_output_approximate_formatting(data_source, solution_str, ground_truth, extra_info=None):
     reward = 0
     response = solution_str

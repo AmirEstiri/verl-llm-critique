@@ -25,11 +25,11 @@ It should follow the sentence or paragraph that you are citing, and should only 
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--local_dir", default="data/voltai")
+	parser.add_argument("--local_dir", default="data/aurix-qa")
 	parser.add_argument("--data_dir", default="data/aurix-qa")
 	args = parser.parse_args()
 
-	data_source = "voltai/infineon-aurix"
+	data_source = "voltai/aurix-qa"
 
 	qa_data = json.load(open(os.path.join(args.data_dir, "openai_qa_data.json")))
 	all_data = json.load(open(os.path.join(args.data_dir, "all_data.json")))

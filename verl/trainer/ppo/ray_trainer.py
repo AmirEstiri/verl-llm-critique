@@ -992,7 +992,7 @@ class RayPPOTrainer:
                         # we combine with rule-based rm
                         reward_extra_infos_dict: dict[str, list]
                         try:
-                            reward_result = self.reward_fn(batch, return_dict=True)
+                            reward_result = self.reward_fn(batch, return_dict=True) # TODO: Maybe pass tokenizer and vllm_engine here
                             reward_tensor = reward_result["reward_tensor"]
                             reward_extra_infos_dict = reward_result["reward_extra_info"]
                         except Exception as e:
