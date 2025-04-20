@@ -28,6 +28,7 @@ class NaiveRewardManager:
         self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
         self.compute_score = compute_score or _default_compute_score
         self.reward_fn_key = reward_fn_key
+        self.vllm_engine = None
 
     def __call__(self, data: DataProto, return_dict=False):
         """We will expand this function gradually based on the available datasets"""
@@ -62,18 +63,28 @@ class NaiveRewardManager:
             prompt_str = self.tokenizer.decode(valid_prompt_ids, skip_special_tokens=True)
             response_str = self.tokenizer.decode(valid_response_ids, skip_special_tokens=True)
 
-            ground_truth = data_item.non_tensor_batch["reward_model"]["ground_truth"]
+            # ground_truth = data_item.non_tensor_batch["reward_model"]["ground_truth"]
+            ground_truth = data_item.non_tensor_batch["extra_info"]["answer"]
 
             data_source = data_item.non_tensor_batch[self.reward_fn_key]
 
             extra_info = data_item.non_tensor_batch.get("extra_info", None)
 
-            score = self.compute_score(
+            scores = self.compute_score(
+                tokenizer=self.tokenizer,
+                # vllm_engine=self.vllm_engine,
                 data_source=data_source,
                 solution_str=response_str,
                 ground_truth=ground_truth,
                 extra_info=extra_info,
             )
+            # print("#"*20)
+            # for key, value in scores.items():
+            #     print(f"[{key}]: {value:.2f}")
+            print(f"[score]: {sum(scores.values()):.2f}")
+            # print("#"*20)
+            
+            score = sum(scores.values())
 
             if isinstance(score, dict):
                 reward = score["score"]
@@ -90,9 +101,9 @@ class NaiveRewardManager:
 
             if already_print_data_sources[data_source] < self.num_examine:
                 already_print_data_sources[data_source] += 1
-                print("[prompt]", prompt_str)
-                print("[response]", response_str)
-                print("[ground_truth]", ground_truth)
+                # print("[prompt]", prompt_str)
+                # print("[response]", response_str)
+                # print("[ground_truth]", ground_truth)
                 if isinstance(score, dict):
                     for key, value in score.items():
                         print(f"[{key}]", value)

@@ -1,5 +1,16 @@
-import re
+from dotenv import load_dotenv
 
+import re
+from langchain_openai import ChatOpenAI
+from langchain.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
+from dataclasses import dataclass
+
+load_dotenv()
+
+@dataclass
+class CorrectnessScore:
+	analysis: str
+	score: float
 
 reasoning_start = "<think>"
 reasoning_end   = "</think>"
@@ -13,40 +24,41 @@ For now, additional information that is not present in the ground truth answer s
 Note that sometimes the groundtruth answer is not really answer, but only suggestions. These are usually expected to be an answer, if the question is simply not well defined, and therefore it is better to give suggestions on what to do next, and not give incorrect answers.
 You should assign a score between 0 and 4, where 0 means that the answer is completely incorrect and/or contradicts the ground truth answer, and 4 means that the answer is completely correct.
 You will also provide an analysis of your scoring and why you gave the score you did. Make sure to compare and contrast the input answer with the ground truth.
-You will output the score as a number between 0 and 4 as a float.
-
-Your output should be in the following format:
-Example output: 
-<analysis>
-... your analysis of the answer, at most one paragraph ...
-</analysis>
-<score>
-... your score between 0 and 4 ...
-</score>"""
-
-
-def all_reward_functions(data_source, solution_str, ground_truth, extra_info=None):
-    return sum(
-        [
-			reward_output_approximate_formatting(data_source, solution_str, ground_truth, extra_info),
-			reward_output_exact_formatting(data_source, solution_str, ground_truth, extra_info),
-			reward_references_formatting(data_source, solution_str, ground_truth, extra_info),
-    	]
-    )
-
-def reward_output_approximate_formatting(data_source, solution_str, ground_truth, extra_info=None):
-    reward = 0
-    response = solution_str
-    # Count how many keywords are seen - we penalize if too many!
-    # If we see 1, then plus some points!
-    reward += 0.25 if response.count(reasoning_start) == 1 else 0.0
-    reward += 0.25 if response.count(reasoning_end)   == 1 else 0.0
-    reward += 0.25 if response.count(solution_start)  == 1 else 0.0
-    reward += 0.25 if response.count(solution_end)    == 1 else 0.0
-    return reward
+You will output the score as a number between 0 and 4 as a float."""
+# Your output should be in the following format:
+# Example output: 
+# <analysis>
+# ... your analysis of the answer, at most one paragraph ...
+# </analysis>
+# <score>
+# ... your score between 0 and 4 ...
+# </score>"""
 
 
-def reward_output_exact_formatting(data_source, solution_str, ground_truth, extra_info=None):
+def all_reward_functions(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
+	return {
+		"approximate_formatting": reward_output_approximate_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"exact_formatting": reward_output_exact_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"references_formatting": reward_references_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"references_correctness": reward_references_correctness(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"correctness": reward_answer_correctness_openai(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"length": reward_output_length(tokenizer, data_source, solution_str, ground_truth, extra_info),
+	}
+	
+
+def reward_output_approximate_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
+	reward = 0
+	response = solution_str
+	# Count how many keywords are seen - we penalize if too many!
+	# If we see 1, then plus some points!
+	reward += 0.25 if response.count(reasoning_start) == 1 else 0.0
+	reward += 0.25 if response.count(reasoning_end)   == 1 else 0.0
+	reward += 0.25 if response.count(solution_start)  == 1 else 0.0
+	reward += 0.25 if response.count(solution_end)    == 1 else 0.0
+	return reward
+
+
+def reward_output_exact_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	match_format = re.compile(
 		rf"{reasoning_start}\s*.*?\s*{reasoning_end}\s*.*?\s*"\
 		rf"{solution_start}\s*.*?\s*{solution_end}\s*.*?\s*", 
@@ -58,7 +70,7 @@ def reward_output_exact_formatting(data_source, solution_str, ground_truth, extr
 	if match_format.search(response) is not None: reward = 2.0
 	return reward
 
-def reward_references_formatting(data_source, solution_str, ground_truth, extra_info=None):
+def reward_references_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	reward = 0.0
 	response = solution_str
 
@@ -92,120 +104,144 @@ def reward_references_formatting(data_source, solution_str, ground_truth, extra_
 	return reward
 
 
-def reward_references_correctness(data_source, solution_str, ground_truth, extra_info=None):
-    reward = 0
-    response = solution_str
-    retrieved_ids = extra_info["retrieved_ids"]
-    ref_ids = extra_info["ref_ids"]
+def reward_references_correctness(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
+	reward = 0
+	response = solution_str
+	retrieved_ids = extra_info["retrieved_ids"]
+	ref_ids = extra_info["ref_ids"]
 
-    # Extract the answer part
-    answer_pattern = f"{solution_start}\s*(.*?)\s*{solution_end}"
-    answer_match = re.search(answer_pattern, response, re.DOTALL)
-    
-    # Calculate reward for thinking part
-    if answer_match:
-        response = answer_match.group(1)
-    else:
-        response = ""
-
-    # Extract all reference IDs from the response
-    pattern = r'<ref id="([^"]+)"></ref>'
-    found_refs = re.findall(pattern, response)
-    
-    # Calculate reward based on reference accuracy
-    if len(ref_ids) > 0:
-        # Reward for correct references
-        correct_refs = [ref for ref in found_refs if ref in ref_ids]
-        incorrect_refs = [ref for ref in found_refs if ref not in ref_ids]
-        # Reward for precision (correct refs / total refs found)
-        precision = len(correct_refs) / max(len(found_refs), 1)
-        # Reward for recall (correct refs / total expected refs)
-        recall = len(correct_refs) / len(ref_ids)
-        
-        # Combined F1-like score
-        if precision + recall > 0:
-            f1 = 2 * precision * recall / (precision + recall)
-            reward += f1 * 1.5  # Scale to similar range as other rewards
-
-        # Incorrect ids must be in the retrieved ids
-        if len(retrieved_ids) > 0:
-            reward += 0.5 * len([ref for ref in incorrect_refs if ref in retrieved_ids]) / len(retrieved_ids)
+	# Extract the answer part
+	answer_pattern = f"{solution_start}\s*(.*?)\s*{solution_end}"
+	answer_match = re.search(answer_pattern, response, re.DOTALL)
 	
-    return reward
+	# Calculate reward for thinking part
+	if answer_match:
+		response = answer_match.group(1)
+	else:
+		response = ""
 
-# TODO: Implement this reward function
-# def reward_answer_correctness(**kwargs):
+	# Extract all reference IDs from the response
+	pattern = r'<ref id="([^"]+)"></ref>'
+	found_refs = re.findall(pattern, response)
+	
+	# Calculate reward based on reference accuracy
+	if len(ref_ids) > 0:
+		# Reward for correct references
+		correct_refs = [ref for ref in found_refs if ref in ref_ids]
+		incorrect_refs = [ref for ref in found_refs if ref not in ref_ids]
+		# Reward for precision (correct refs / total refs found)
+		precision = len(correct_refs) / max(len(found_refs), 1)
+		# Reward for recall (correct refs / total expected refs)
+		recall = len(correct_refs) / len(ref_ids)
+		
+		# Combined F1-like score
+		if precision + recall > 0:
+			f1 = 2 * precision * recall / (precision + recall)
+			reward += f1 * 1.5  # Scale to similar range as other rewards
+
+		# Incorrect ids must be in the retrieved ids
+		if len(retrieved_ids) > 0:
+			reward += 0.5 * len([ref for ref in incorrect_refs if ref in retrieved_ids]) / len(retrieved_ids)
+	
+	return reward
+
+
+openai_scorer = ChatOpenAI(model="gpt-4o-mini", temperature=0.1).with_structured_output(CorrectnessScore)
+def reward_answer_correctness_openai(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
+	answer = solution_str
+	gt_answer = ground_truth
+
+	# Extract the answer part
+	answer_pattern = r"<answer>\s*(.*?)\s*</answer>"
+	answer_match = re.search(answer_pattern, answer, re.DOTALL)
+	if answer_match:
+		answer = answer_match.group(1)
+
+	print("ANSWER: ", answer)
+	print("GT ANSWER: ", gt_answer)
+	prompt = ChatPromptTemplate.from_messages([
+		SystemMessagePromptTemplate.from_template(EVAL_CORRECTNESS_PROMPT),
+		HumanMessagePromptTemplate.from_template("Groundtruth Answer: {gt_answer}\nAnswer: {answer}"),
+	])
+	pipeline = prompt | openai_scorer
+	response = pipeline.invoke({"gt_answer": gt_answer, "answer": answer})
+	print("ANALYSIS: ", response["analysis"])
+	print("SCORE: ", response["score"])
+	breakpoint()
+	return response["score"]
+
+# def reward_answer_correctness(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 # 	prompts = []
-# 	for completion, question, gt_answer in zip(completions, kwargs['question'], kwargs['gt_answer']):
-# 		# Apply the chat template to the prompt.
-# 		answer = completion[-1]["content"]
+# 	answer = solution_str
+# 	gt_answer = ground_truth
 
-# 		eval_prompt = {
-# 			"messages": [
-# 				{"role": "system", "content": EVAL_CORRECTNESS_PROMPT},
-# 				{
-# 					"role": "user",
-# 					"content": f"Groundtruth Answer: {gt_answer}\nAnswer: {answer}",
-# 				},
-# 			],
-# 		}
-# 		eval_prompt = apply_chat_template(eval_prompt, tokenizer=tokenizer)[
-# 			"text"
-# 		]
-# 		prompts.append(eval_prompt)
+# 	eval_chat = {
+# 		"messages": [
+# 			{"role": "system", "content": EVAL_CORRECTNESS_PROMPT},
+# 			{
+# 				"role": "user",
+# 				"content": f"Groundtruth Answer: {gt_answer}\nAnswer: {answer}",
+# 			},
+# 		],
+# 	}
+# 	eval_prompt = tokenizer.apply_chat_template(
+#         eval_chat, tokenize=False, add_generation_prompt=True, max_length=2048, padding="max_length"
+#     )
+# 	eval_data = DataProto(
+# 		batch = {
+# 			"input_ids": [tokenizer.encode(eval_prompt)],
+# 			"attention_mask": [[1] * len(tokenizer.encode(eval_prompt))],
+# 			"position_ids": [[0] * len(tokenizer.encode(eval_prompt))],
+# 		},
+# 		meta_info = {
+# 			"eos_token_id": tokenizer.eos_token_id,
+# 		},
+# 	)
 
 # 	# Get the model responses in batch (each response should ideally be "Yes" or "No")
-# 	responses = eval_fn(prompts)
+# 	responses = vllm_engine.generate_sequences(eval_data)
 # 	responses_text = [response.outputs[0].text for response in responses]
 
 # 	# Evaluate each response and mark as correct if "yes" appears in the answer (case-insensitive)
-# 	rewards = []
-# 	for response_text in responses_text:
-# 		try:
-# 			# Extract the score from the response text
-# 			pattern = r"<score>\s*(\d+(?:\.\d+)?)\s*</score>"
-# 			match = re.search(pattern, response_text, re.DOTALL)
-# 			if match:
-# 				reward = float(match.group(1))
-# 			else:
-# 				reward = 0.0
-# 			rewards.append(reward)
-# 		except ValueError:
-# 			rewards.append(0.0)
-
-# 	return rewards
-
-# TODO: Implement this reward function
-# def reward_output_length(data_source, solution_str, ground_truth, extra_info=None):
-# 	rewards = []
-# 	for completion in completions:
+# 	try:
+# 		# Extract the score from the response text
+# 		pattern = r"<score>\s*(\d+(?:\.\d+)?)\s*</score>"
+# 		match = re.search(pattern, response_text, re.DOTALL)
+# 		if match:
+# 			reward = float(match.group(1))
+# 		else:
+# 			reward = 0.0
+# 	except ValueError:
 # 		reward = 0.0
-# 		response = completion[0]["content"]
-		
-# 		# Extract the thinking part
-# 		think_pattern = f"{reasoning_start}\s*(.*?)\s*{reasoning_end}"
-# 		think_match = re.search(think_pattern, response, re.DOTALL)
-		
-# 		# Extract the answer part
-# 		answer_pattern = f"{solution_start}\s*(.*?)\s*{solution_end}"
-# 		answer_match = re.search(answer_pattern, response, re.DOTALL)
-		
-# 		# Calculate reward for thinking part
-# 		if think_match:
-# 			thinking_text = think_match.group(1)
-# 			thinking_tokens = len(tokenizer.encode(thinking_text))
-			
-# 			if 0 <= thinking_tokens <= 2048:
-# 				reward += 0.5
-		
-# 		# Calculate reward for answer part
-# 		if answer_match:
-# 			answer_text = answer_match.group(1)
-# 			answer_tokens = len(tokenizer.encode(answer_text))
-			
-# 			if 0 <= answer_tokens <= 1024:
-# 				reward += 0.5
-		
-# 		rewards.append(reward)
+
+# 	return reward
+
+def reward_output_length(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
+	reward = 0.0
+	response = solution_str
 	
-# 	return rewards
+	# Extract the thinking part
+	think_pattern = f"{reasoning_start}\s*(.*?)\s*{reasoning_end}"
+	think_match = re.search(think_pattern, response, re.DOTALL)
+	
+	# Extract the answer part
+	answer_pattern = f"{solution_start}\s*(.*?)\s*{solution_end}"
+	answer_match = re.search(answer_pattern, response, re.DOTALL)
+	
+	# Calculate reward for thinking part
+	if think_match:
+		thinking_text = think_match.group(1)
+		thinking_tokens = len(tokenizer.encode(thinking_text))
+		
+		if 0 <= thinking_tokens <= 2048:
+			reward += 0.5
+	
+	# Calculate reward for answer part
+	if answer_match:
+		answer_text = answer_match.group(1)
+		answer_tokens = len(tokenizer.encode(answer_text))
+		
+		if 0 <= answer_tokens <= 1024:
+			reward += 0.5
+	
+	return reward

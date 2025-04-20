@@ -214,6 +214,8 @@ class ActorRolloutRefWorker(Worker):
             else:
                 actor_module_class = AutoModelForCausalLM
 
+            from peft import LoraConfig, get_peft_model
+
             actor_module = actor_module_class.from_pretrained(
                 pretrained_model_name_or_path=local_path,
                 torch_dtype=torch_dtype,
@@ -221,6 +223,17 @@ class ActorRolloutRefWorker(Worker):
                 attn_implementation="flash_attention_2",
                 trust_remote_code=trust_remote_code,
             )
+
+            # # Add LoRA with rank 64
+            # lora_config = LoraConfig(
+            #     r=64,
+            #     lora_alpha=64,
+            #     target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "down_proj"],
+            #     lora_dropout=0.05,
+            #     bias="none",
+            #     task_type="CAUSAL_LM"
+            # )
+            # actor_module = get_peft_model(actor_module, lora_config)
 
             if use_remove_padding or self.ulysses_sequence_parallel_size > 1:
                 from verl.models.transformers.monkey_patch import apply_monkey_patch

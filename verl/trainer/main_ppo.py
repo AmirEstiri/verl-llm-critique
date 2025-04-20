@@ -204,6 +204,7 @@ class TaskRunner:
             val_reward_fn=val_reward_fn,
         )
         trainer.init_workers()
+        # reward_fn.vllm_engine = trainer.actor_rollout_wg
         trainer.fit()
 
 

@@ -25,15 +25,16 @@ It should follow the sentence or paragraph that you are citing, and should only 
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--local_dir", default="data/aurix-qa")
-	parser.add_argument("--data_dir", default="data/aurix-qa")
+	parser.add_argument("--local_dir", default="data/aurix")
+	parser.add_argument("--data_dir", default="data/aurix")
 	args = parser.parse_args()
 
-	data_source = "voltai/aurix-qa"
+	data_source = "voltai/aurix"
 
 	qa_data = json.load(open(os.path.join(args.data_dir, "openai_qa_data.json")))
+	qc_data = json.load(open(os.path.join(args.data_dir, "qc_data.json")))
 	all_data = json.load(open(os.path.join(args.data_dir, "all_data.json")))
-	retrieval_ids = json.load(open(os.path.join(args.data_dir, "all_data_similar.json")))	
+	retrieval_ids = json.load(open(os.path.join(args.data_dir, "all_data_similar.json")))
 		
 	def make_map_fn(split):
 		def process_fn(example, idx):
@@ -44,7 +45,7 @@ if __name__ == "__main__":
 						{"role": "user",   "content": f"<question>{example['question']}</question>" + "\n".join(
 								[
 									f"<document id={chunk_id}>{all_data[chunk_id]}</document>" 
-									for chunk_id in retrieval_ids[example["original_chunk_id"]]
+									for chunk_id in qc_data.get(example["original_chunk_id"], [])
 									if chunk_id in all_data
 								]
 							),

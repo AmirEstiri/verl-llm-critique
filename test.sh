@@ -2,8 +2,8 @@ set -x
 
 #export VLLM_ATTENTION_BACKEND=XFORMERS
 
-aurix_train_path=data/gsm8k/train.parquet
-aurix_test_path=data/gsm8k/test.parquet
+aurix_train_path=data/aurix/train.parquet
+aurix_test_path=data/aurix/test.parquet
 model_path=Qwen/Qwen2-7B-Instruct
 
 train_files="['$aurix_train_path']"
@@ -16,8 +16,8 @@ PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     data.train_files="$train_files" \
     data.val_files="$test_files" \
     data.train_batch_size=1024 \
-    data.max_prompt_length=1024 \
-    data.max_response_length=1024 \
+    data.max_prompt_length=16384 \
+    data.max_response_length=4096 \
     data.filter_overlong_prompts=True \
     data.truncation='error' \
     actor_rollout_ref.model.path=$model_path \
