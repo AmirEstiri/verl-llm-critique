@@ -42,8 +42,7 @@ class NaiveRewardManager:
 
         reward_tensor = torch.zeros_like(data.batch["responses"], dtype=torch.float32)
         reward_extra_info = defaultdict(list)
-
-        already_print_data_sources = {}
+        all_scores = {}
 
         for i in range(len(data)):
             data_item = data[i]  # DataProtoItem
@@ -53,14 +52,14 @@ class NaiveRewardManager:
             prompt_length = prompt_ids.shape[-1]
 
             valid_prompt_length = data_item.batch["attention_mask"][:prompt_length].sum()
-            valid_prompt_ids = prompt_ids[-valid_prompt_length:]
+            # valid_prompt_ids = prompt_ids[-valid_prompt_length:]
 
             response_ids = data_item.batch["responses"]
             valid_response_length = data_item.batch["attention_mask"][prompt_length:].sum()
             valid_response_ids = response_ids[:valid_response_length]
 
             # decode
-            prompt_str = self.tokenizer.decode(valid_prompt_ids, skip_special_tokens=True)
+            # prompt_str = self.tokenizer.decode(valid_prompt_ids, skip_special_tokens=True)
             response_str = self.tokenizer.decode(valid_response_ids, skip_special_tokens=True)
 
             # ground_truth = data_item.non_tensor_batch["reward_model"]["ground_truth"]
@@ -78,13 +77,12 @@ class NaiveRewardManager:
                 ground_truth=ground_truth,
                 extra_info=extra_info,
             )
-            # print("#"*20)
-            # for key, value in scores.items():
-            #     print(f"[{key}]: {value:.2f}")
-            print(f"[score]: {sum(scores.values()):.2f}")
-            # print("#"*20)
-            
+
             score = sum(scores.values())
+            for k in scores.keys():
+                if k not in all_scores:
+                    all_scores[k] = []
+                all_scores[k].append(scores[k])
 
             if isinstance(score, dict):
                 reward = score["score"]
@@ -96,20 +94,11 @@ class NaiveRewardManager:
 
             reward_tensor[i, valid_response_length - 1] = reward
 
-            if data_source not in already_print_data_sources:
-                already_print_data_sources[data_source] = 0
-
-            if already_print_data_sources[data_source] < self.num_examine:
-                already_print_data_sources[data_source] += 1
-                # print("[prompt]", prompt_str)
-                # print("[response]", response_str)
-                # print("[ground_truth]", ground_truth)
-                if isinstance(score, dict):
-                    for key, value in score.items():
-                        print(f"[{key}]", value)
-                else:
-                    print("[score]", score)
-
+        all_scores = {
+            k: sum(v) / len(v) for k, v in all_scores.items()
+        }
+        all_scores["all"] = sum(all_scores.values())
+        print(f"[scores]: {all_scores} avg of {len(data)}")
         if return_dict:
             return {
                 "reward_tensor": reward_tensor,

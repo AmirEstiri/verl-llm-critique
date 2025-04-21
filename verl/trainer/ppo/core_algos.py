@@ -484,6 +484,7 @@ def kl_penalty(logprob: torch.FloatTensor, ref_logprob: torch.FloatTensor, kl_pe
     # # URL http://joschu.net/blog/kl-approx.html.
     if kl_penalty == "low_var_kl":
         kl = ref_logprob - logprob
+        torch.clamp(kl, min=-5, max=5) # TODO: Temorary fix for grad_norm nan
         ratio = torch.exp(kl)
         kld = (ratio - kl - 1).contiguous()
         return torch.clamp(kld, min=-10, max=10)

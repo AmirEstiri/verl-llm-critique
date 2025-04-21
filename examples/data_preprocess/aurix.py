@@ -45,7 +45,7 @@ if __name__ == "__main__":
 						{"role": "user",   "content": f"<question>{example['question']}</question>" + "\n".join(
 								[
 									f"<document id={chunk_id}>{all_data[chunk_id]}</document>" 
-									for chunk_id in qc_data.get(example["original_chunk_id"], [])
+									for chunk_id in retrieval_ids[example["original_chunk_id"]]
 									if chunk_id in all_data
 								]
 							),
@@ -72,13 +72,10 @@ if __name__ == "__main__":
 	dataset = Dataset.from_list(qa_data)
 	dataset = dataset.map(function=make_map_fn("train"), with_indices=True)
 
-	# Shuffle the dataset for better training
-	dataset = dataset.shuffle(seed=407)
-
 	# Split the dataset into train and test sets (95% train, 5% test)
-	dataset = dataset.train_test_split(test_size=0.05, seed=407)
+	dataset = dataset.train_test_split(test_size=100, train_size=5000, seed=407, shuffle=True)
 	train_dataset = dataset["train"]
-	test_dataset = dataset["test"]	
+	test_dataset = dataset["test"]
 
 	local_dir = args.local_dir
 	train_dataset.to_parquet(os.path.join(local_dir, "train.parquet"))

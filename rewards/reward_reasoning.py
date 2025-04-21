@@ -34,7 +34,6 @@ You will output the score as a number between 0 and 4 as a float."""
 # ... your score between 0 and 4 ...
 # </score>"""
 
-
 def all_reward_functions(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	return {
 		"approximate_formatting": reward_output_approximate_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
@@ -146,7 +145,7 @@ def reward_references_correctness(tokenizer, data_source, solution_str, ground_t
 	return reward
 
 
-openai_scorer = ChatOpenAI(model="gpt-4o-mini", temperature=0.1).with_structured_output(CorrectnessScore)
+openai_scorer = ChatOpenAI(model="gpt-4.1-nano", temperature=0.1).with_structured_output(CorrectnessScore)
 def reward_answer_correctness_openai(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	answer = solution_str
 	gt_answer = ground_truth
@@ -157,17 +156,13 @@ def reward_answer_correctness_openai(tokenizer, data_source, solution_str, groun
 	if answer_match:
 		answer = answer_match.group(1)
 
-	print("ANSWER: ", answer)
-	print("GT ANSWER: ", gt_answer)
 	prompt = ChatPromptTemplate.from_messages([
 		SystemMessagePromptTemplate.from_template(EVAL_CORRECTNESS_PROMPT),
 		HumanMessagePromptTemplate.from_template("Groundtruth Answer: {gt_answer}\nAnswer: {answer}"),
 	])
 	pipeline = prompt | openai_scorer
 	response = pipeline.invoke({"gt_answer": gt_answer, "answer": answer})
-	print("ANALYSIS: ", response["analysis"])
-	print("SCORE: ", response["score"])
-	breakpoint()
+	# print("score", extra_info["question"], response["score"])
 	return response["score"]
 
 # def reward_answer_correctness(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
