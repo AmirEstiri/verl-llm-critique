@@ -5,6 +5,7 @@ Preprocess the VoltAI dataset to parquet format
 import argparse
 import os
 import json
+import re
 
 from datasets import Dataset
 
@@ -25,8 +26,8 @@ It should follow the sentence or paragraph that you are citing, and should only 
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--local_dir", default="data/aurix")
-	parser.add_argument("--data_dir", default="data/aurix")
+	parser.add_argument("--local_dir", default="data/")
+	parser.add_argument("--data_dir", default="data/")
 	args = parser.parse_args()
 
 	data_source = "voltai/aurix"
@@ -47,6 +48,15 @@ if __name__ == "__main__":
 
 	def make_map_fn(split):
 		def process_fn(example, idx):
+			pattern = r'<ref id=\"([^"]+)\"></ref>'
+			refs = re.findall(pattern, example['gemini_answer'])
+			if len(refs) == 0:
+				pattern = r'<ref id=\'([^"]+)\'></ref>'
+				refs = re.findall(pattern, example['gemini_answer'])
+			if len(refs) == 0:
+				pattern = r'<ref id=([^"\'>]+)></ref>'
+				refs = re.findall(pattern, example['gemini_answer'])
+			example['ref_ids'] = list(set(refs))
 			data = {
 				"data_source": data_source,                
 				"prompt": [
@@ -54,7 +64,7 @@ if __name__ == "__main__":
 						{"role": "user",   "content": f"<question>{example['question']}</question>" + "\n".join(
 								[
 									f"<document id={chunk_id}>{all_data[chunk_id]}</document>" 
-									for chunk_id in qc_data.get(example["question"], [])
+									for chunk_id in qc_data.get(example["question"], [])[:5]
 									if chunk_id in all_data
 								]
 							),
@@ -82,7 +92,7 @@ if __name__ == "__main__":
 	dataset = dataset.map(function=make_map_fn("train"), with_indices=True)
 
 	# Split the dataset into train and test sets (95% train, 5% test)
-	dataset = dataset.train_test_split(test_size=26, train_size=30, seed=407, shuffle=True)
+	dataset = dataset.train_test_split(test_size=26, train_size=300, seed=407, shuffle=True)
 	train_dataset = dataset["train"]
 	test_dataset = dataset["test"]
 
