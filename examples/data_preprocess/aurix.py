@@ -31,11 +31,20 @@ if __name__ == "__main__":
 
 	data_source = "voltai/aurix"
 
-	qa_data = json.load(open(os.path.join(args.data_dir, "openai_qa_data.json")))
+	qa_data = json.load(open(os.path.join(args.data_dir, "gemini_qa_data.json")))
 	qc_data = json.load(open(os.path.join(args.data_dir, "qc_data.json")))
 	all_data = json.load(open(os.path.join(args.data_dir, "all_data.json")))
 	retrieval_ids = json.load(open(os.path.join(args.data_dir, "all_data_similar.json")))
-		
+
+	filtered_data = []
+	for sample in qa_data:
+		if len(qc_data.get(sample["question"], [])) == 0:
+			continue
+		filtered_data.append(sample)
+
+	qa_data = filtered_data
+	print("Size of filtered data:", len(qa_data))
+
 	def make_map_fn(split):
 		def process_fn(example, idx):
 			data = {
@@ -45,7 +54,7 @@ if __name__ == "__main__":
 						{"role": "user",   "content": f"<question>{example['question']}</question>" + "\n".join(
 								[
 									f"<document id={chunk_id}>{all_data[chunk_id]}</document>" 
-									for chunk_id in retrieval_ids[example["original_chunk_id"]]
+									for chunk_id in qc_data.get(example["question"], [])
 									if chunk_id in all_data
 								]
 							),
@@ -56,7 +65,7 @@ if __name__ == "__main__":
 				"extra_info": {
 					"split": split,
 					"index": idx,
-					"answer": example["answer"].strip(),
+					"answer": example["gemini_answer"].strip(),
 					"question": example["question"],
 					"ref_ids": example.get(
 						"ref_ids", []
@@ -73,7 +82,7 @@ if __name__ == "__main__":
 	dataset = dataset.map(function=make_map_fn("train"), with_indices=True)
 
 	# Split the dataset into train and test sets (95% train, 5% test)
-	dataset = dataset.train_test_split(test_size=100, train_size=5000, seed=407, shuffle=True)
+	dataset = dataset.train_test_split(test_size=26, train_size=30, seed=407, shuffle=True)
 	train_dataset = dataset["train"]
 	test_dataset = dataset["test"]
 

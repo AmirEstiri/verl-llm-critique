@@ -6,4 +6,4 @@
 Move data to `data/aurix` and then run `python3 -m examples.data_preprocess.aurix`  
 
 ## TODOs 
-Enable LoRA: NO IDEA!
+Enable LoRA
