@@ -111,7 +111,7 @@ class vLLMRollout(BaseRollout):
                 rope_scaling_factor = rope_scaling.get("factor", 1.0)
 
         assert model_hf_config.max_position_embeddings * rope_scaling_factor >= config.prompt_length + config.response_length, (
-            "model context length should be greater than total sequence length"
+            f"model context length ({model_hf_config.max_position_embeddings * rope_scaling_factor}) should be greater than total sequence length ({config.prompt_length + config.response_length})"
         )
 
         max_model_len = int(config.max_model_len or config.prompt_length + config.response_length)
