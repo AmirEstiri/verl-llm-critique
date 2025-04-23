@@ -1,7 +1,7 @@
 set -x
 
 # export VLLM_USE_V1=1
-# export VLLM_ATTENTION_BACKEND=XFORMERS
+export VLLM_ATTENTION_BACKEND=XFORMERS
 
 aurix_train_path=data/train.parquet
 aurix_test_path=data/test.parquet
@@ -11,7 +11,7 @@ train_files="['$aurix_train_path']"
 test_files="['$aurix_test_path']"
 
 batch_size=8
-ppo_batch_size=8
+ppo_batch_size=64
 input_length=120000
 output_length=8000
 max_length=$((input_length + output_length))
@@ -67,7 +67,7 @@ PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     trainer.experiment_name='qwen2_7b_qa_reasoning' \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \
-    trainer.save_freq=-1 \
+    trainer.save_freq=1 \
     trainer.val_before_train=False \
     trainer.test_freq=-1 \
-    trainer.total_epochs=1 $@
+    trainer.total_epochs=10 $@

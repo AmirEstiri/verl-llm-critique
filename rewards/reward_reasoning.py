@@ -227,16 +227,16 @@ def reward_output_length(tokenizer, data_source, solution_str, ground_truth, ext
 	if think_match:
 		thinking_text = think_match.group(1)
 		thinking_tokens = len(tokenizer.encode(thinking_text))
-		
-		if 0 <= thinking_tokens <= 2048:
-			reward += 0.5
+	
+		if thinking_tokens <= 6000:
+			reward += 0.5 * min(thinking_tokens / 6000, 1.0)
 	
 	# Calculate reward for answer part
 	if answer_match:
 		answer_text = answer_match.group(1)
 		answer_tokens = len(tokenizer.encode(answer_text))
 		
-		if 0 <= answer_tokens <= 1024:
-			reward += 0.5
+		if answer_tokens <= 2000:
+			reward += 0.5 * min(answer_tokens / 2000, 1.0)
 	
 	return reward
