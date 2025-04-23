@@ -113,6 +113,7 @@ if __name__ == "__main__":
 			continue
 		filtered_data.append(sample)
 
+	print("Size of original data:", len(qa_data))
 	qa_data = filtered_data
 	print("Size of filtered data:", len(qa_data))
 	
