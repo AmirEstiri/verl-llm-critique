@@ -30,9 +30,6 @@ class NaiveRewardManager:
         self.compute_score = compute_score or _default_compute_score
         self.reward_fn_key = reward_fn_key
         self.vllm_engine = None
-        # Remove rewards log file if it exists
-        if os.path.exists("rewards/rewards.log"):
-            os.remove("rewards/rewards.log")
 
     def __call__(self, data: DataProto, return_dict=False):
         """We will expand this function gradually based on the available datasets"""
@@ -105,7 +102,7 @@ class NaiveRewardManager:
         all_scores = {k: f"{v:.2f}" for k, v in all_scores.items()}
         log_msg = f"[scores]: {all_scores} avg of {len(data)}"
         print(log_msg)
-        with open("rewards/rewards.log", "a") as f:
+        with open("rewards.log", "a") as f:
             f.write(log_msg + "\n")
         
         if return_dict:

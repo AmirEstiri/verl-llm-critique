@@ -13,11 +13,16 @@ test_files="['$aurix_test_path']"
 batch_size=8
 ppo_batch_size=64
 input_length=120000
-output_length=8000
+output_length=10000
 max_length=$((input_length + output_length))
-log_prob_max_token_len_per_gpu=$((max_length / 4))
-ppo_max_token_len_per_gpu=$((max_length / 4))
+log_prob_max_token_len_per_gpu=$((max_length / 3))
+ppo_max_token_len_per_gpu=$((max_length / 3))
 ulysses_sequence_parallel_size=4
+
+python3 -m examples.data_preprocess.aurix
+
+rm answers.log
+rm rewards.log
 
 PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
@@ -67,7 +72,7 @@ PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     trainer.experiment_name='qwen2_7b_qa_reasoning' \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \
-    trainer.save_freq=1 \
+    trainer.save_freq=20 \
     trainer.val_before_train=False \
     trainer.test_freq=-1 \
-    trainer.total_epochs=10 $@
+    trainer.total_epochs=1 $@

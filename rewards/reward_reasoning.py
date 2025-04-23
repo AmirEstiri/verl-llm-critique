@@ -25,14 +25,6 @@ Note that sometimes the groundtruth answer is not really answer, but only sugges
 You should assign a score between 0 and 4, where 0 means that the answer is completely incorrect and/or contradicts the ground truth answer, and 4 means that the answer is completely correct.
 You will also provide an analysis of your scoring and why you gave the score you did. Make sure to compare and contrast the input answer with the ground truth.
 You will output the score as a number between 0 and 4 as a float."""
-# Your output should be in the following format:
-# Example output: 
-# <analysis>
-# ... your analysis of the answer, at most one paragraph ...
-# </analysis>
-# <score>
-# ... your score between 0 and 4 ...
-# </score>"""
 
 def all_reward_functions(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	return {
@@ -72,6 +64,9 @@ def reward_output_exact_formatting(tokenizer, data_source, solution_str, ground_
 def reward_references_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	reward = 0.0
 	response = solution_str
+
+	with open("answers.log", "a") as f:
+		f.write(solution_str + "\n\n\n" + "#" * 100 + "\n\n\n")
 
 	# Extract the answer part
 	answer_pattern = f"{solution_start}\s*(.*?)\s*{solution_end}"
@@ -162,54 +157,8 @@ def reward_answer_correctness_openai(tokenizer, data_source, solution_str, groun
 	])
 	pipeline = prompt | openai_scorer
 	response = pipeline.invoke({"gt_answer": gt_answer, "answer": answer})
-	# print("score", extra_info["question"], response["score"])
 	return response["score"]
 
-# def reward_answer_correctness(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
-# 	prompts = []
-# 	answer = solution_str
-# 	gt_answer = ground_truth
-
-# 	eval_chat = {
-# 		"messages": [
-# 			{"role": "system", "content": EVAL_CORRECTNESS_PROMPT},
-# 			{
-# 				"role": "user",
-# 				"content": f"Groundtruth Answer: {gt_answer}\nAnswer: {answer}",
-# 			},
-# 		],
-# 	}
-# 	eval_prompt = tokenizer.apply_chat_template(
-#         eval_chat, tokenize=False, add_generation_prompt=True, max_length=2048, padding="max_length"
-#     )
-# 	eval_data = DataProto(
-# 		batch = {
-# 			"input_ids": [tokenizer.encode(eval_prompt)],
-# 			"attention_mask": [[1] * len(tokenizer.encode(eval_prompt))],
-# 			"position_ids": [[0] * len(tokenizer.encode(eval_prompt))],
-# 		},
-# 		meta_info = {
-# 			"eos_token_id": tokenizer.eos_token_id,
-# 		},
-# 	)
-
-# 	# Get the model responses in batch (each response should ideally be "Yes" or "No")
-# 	responses = vllm_engine.generate_sequences(eval_data)
-# 	responses_text = [response.outputs[0].text for response in responses]
-
-# 	# Evaluate each response and mark as correct if "yes" appears in the answer (case-insensitive)
-# 	try:
-# 		# Extract the score from the response text
-# 		pattern = r"<score>\s*(\d+(?:\.\d+)?)\s*</score>"
-# 		match = re.search(pattern, response_text, re.DOTALL)
-# 		if match:
-# 			reward = float(match.group(1))
-# 		else:
-# 			reward = 0.0
-# 	except ValueError:
-# 		reward = 0.0
-
-# 	return reward
 
 def reward_output_length(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	reward = 0.0
@@ -228,8 +177,8 @@ def reward_output_length(tokenizer, data_source, solution_str, ground_truth, ext
 		thinking_text = think_match.group(1)
 		thinking_tokens = len(tokenizer.encode(thinking_text))
 	
-		if thinking_tokens <= 6000:
-			reward += 0.5 * min(thinking_tokens / 6000, 1.0)
+		if thinking_tokens <= 8000:
+			reward += 0.5 * min(thinking_tokens / 8000, 1.0)
 	
 	# Calculate reward for answer part
 	if answer_match:
