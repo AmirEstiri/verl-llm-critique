@@ -45,6 +45,57 @@ Wrap your final response in `<answer>` tags:
   - **Citations:** Use inline references in the format `<ref id="document_id"></ref>`.
 Finally, finish your answer with a `</answer>` tag."""
 
+qa_data = json.load(open(os.path.join(args.data_dir, "gemini_qa_data.json")))
+qc_data = json.load(open(os.path.join(args.data_dir, "qc_data.json")))
+all_data = json.load(open(os.path.join(args.data_dir, "all_data.json")))
+retrieval_ids = json.load(open(os.path.join(args.data_dir, "all_data_similar.json")))
+
+
+def extract_ref_ids(example):
+	pattern = r'<ref id=\"([^"]+)\"></ref>'
+	refs = re.findall(pattern, example['gemini_answer'])
+	if len(refs) == 0:
+		pattern = r'<ref id=\'([^"]+)\'></ref>'
+		refs = re.findall(pattern, example['gemini_answer'])
+	if len(refs) == 0:
+		pattern = r'<ref id=([^"\'>]+)></ref>'
+		refs = re.findall(pattern, example['gemini_answer'])
+	example['ref_ids'] = list(set(refs))
+	print(f"found {len(example['ref_ids'])} references")
+	return example
+
+
+def make_map_fn(split):
+	def process_fn(example, idx):
+		data = {
+			"data_source": data_source,                
+			"prompt": [
+					{"role": "system", "content": SYSTEM_PROMPT},
+					{"role": "user",   "content": f"<question>{example['question']}</question>" + "\n".join(
+							[
+								f"<document id={chunk_id}>{all_data[chunk_id]}</document>" 
+								for chunk_id in qc_data.get(example["question"], [])
+								if chunk_id in all_data
+							]
+						),
+					}
+			],
+			"ability": "math",
+			"reward_model": {"style": "rule", "ground_truth": None},
+			"extra_info": {
+				"split": split,
+				"index": idx,
+				"answer": example["gemini_answer"].strip(),
+				"question": example["question"],
+				"ref_ids": example.get(
+					"ref_ids", []
+				),  # reference IDs, defaulting to empty list if not present
+				"retrieved_ids": retrieval_ids[example["original_chunk_id"]],					
+			}
+		}
+		return data
+
+	return process_fn
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
@@ -54,61 +105,17 @@ if __name__ == "__main__":
 
 	data_source = "voltai/aurix"
 
-	qa_data = json.load(open(os.path.join(args.data_dir, "gemini_qa_data.json")))
-	qc_data = json.load(open(os.path.join(args.data_dir, "qc_data.json")))
-	all_data = json.load(open(os.path.join(args.data_dir, "all_data.json")))
-	retrieval_ids = json.load(open(os.path.join(args.data_dir, "all_data_similar.json")))
-
 	filtered_data = []
 	for sample in qa_data:
 		if len(qc_data.get(sample["question"], [])) == 0:
+			continue
+		sample = extract_ref_ids(sample)
+		if len(sample["ref_ids"]) == 0:
 			continue
 		filtered_data.append(sample)
 
 	qa_data = filtered_data
 	print("Size of filtered data:", len(qa_data))
-
-	def make_map_fn(split):
-		def process_fn(example, idx):
-			pattern = r'<ref id=\"([^"]+)\"></ref>'
-			refs = re.findall(pattern, example['gemini_answer'])
-			if len(refs) == 0:
-				pattern = r'<ref id=\'([^"]+)\'></ref>'
-				refs = re.findall(pattern, example['gemini_answer'])
-			if len(refs) == 0:
-				pattern = r'<ref id=([^"\'>]+)></ref>'
-				refs = re.findall(pattern, example['gemini_answer'])
-			example['ref_ids'] = list(set(refs))
-			print(f"found {len(example['ref_ids'])} references")
-			data = {
-				"data_source": data_source,                
-				"prompt": [
-						{"role": "system", "content": SYSTEM_PROMPT},
-						{"role": "user",   "content": f"<question>{example['question']}</question>" + "\n".join(
-								[
-									f"<document id={chunk_id}>{all_data[chunk_id]}</document>" 
-									for chunk_id in qc_data.get(example["question"], [])
-									if chunk_id in all_data
-								]
-							),
-						}
-				],
-				"ability": "math",
-				"reward_model": {"style": "rule", "ground_truth": None},
-				"extra_info": {
-					"split": split,
-					"index": idx,
-					"answer": example["gemini_answer"].strip(),
-					"question": example["question"],
-					"ref_ids": example.get(
-						"ref_ids", []
-					),  # reference IDs, defaulting to empty list if not present
-					"retrieved_ids": retrieval_ids[example["original_chunk_id"]],					
-				}
-			}
-			return data
-
-		return process_fn
 	
 	# Convert the list of dicts into a HuggingFace Dataset.
 	dataset = Dataset.from_list(qa_data)
