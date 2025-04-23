@@ -45,11 +45,6 @@ Wrap your final response in `<answer>` tags:
   - **Citations:** Use inline references in the format `<ref id="document_id"></ref>`.
 Finally, finish your answer with a `</answer>` tag."""
 
-qa_data = json.load(open(os.path.join(args.data_dir, "gemini_qa_data.json")))
-qc_data = json.load(open(os.path.join(args.data_dir, "qc_data.json")))
-all_data = json.load(open(os.path.join(args.data_dir, "all_data.json")))
-retrieval_ids = json.load(open(os.path.join(args.data_dir, "all_data_similar.json")))
-
 
 def extract_ref_ids(example):
 	pattern = r'<ref id=\"([^"]+)\"></ref>'
@@ -104,6 +99,10 @@ if __name__ == "__main__":
 	args = parser.parse_args()
 
 	data_source = "voltai/aurix"
+	qa_data = json.load(open(os.path.join(args.data_dir, "gemini_qa_data.json")))
+	qc_data = json.load(open(os.path.join(args.data_dir, "qc_data.json")))
+	all_data = json.load(open(os.path.join(args.data_dir, "all_data.json")))
+	retrieval_ids = json.load(open(os.path.join(args.data_dir, "all_data_similar.json")))	
 
 	filtered_data = []
 	for sample in qa_data:
