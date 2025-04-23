@@ -103,7 +103,7 @@ class NaiveRewardManager:
         log_msg = f"[scores]: {all_scores} avg of {len(data)}"
         print(log_msg)
         with open("rewards.log", "a") as f:
-            f.write(log_msg + "\n")
+            f.write(str(all_scores) + "\n")
         
         if return_dict:
             return {

@@ -5,7 +5,8 @@ export VLLM_ATTENTION_BACKEND=XFORMERS
 
 aurix_train_path=data/train.parquet
 aurix_test_path=data/test.parquet
-model_path=Qwen/Qwen2-7B-Instruct
+# model_path=Qwen/Qwen2-7B-Instruct
+model_path=Qwen/Qwen2.5-32B-Instruct
 
 train_files="['$aurix_train_path']"
 test_files="['$aurix_test_path']"

@@ -17,28 +17,33 @@ reasoning_end   = "</think>"
 solution_start = "<answer>"
 solution_end = "</answer>"
 
-EVAL_CORRECTNESS_PROMPT = """You are a senior hardware engineer and your task is to evaluate an answer to a technical question by comparing it to a reference answer. Sometimes answers have attachments, so illustrate something about the answer.
-You are given the answer as input and the ground truth answer as the reference answer. Your task is to evaluate the correctness of the answer.
-Correctness is a measure of how accurate the answer is compared to the ground truth answer. You will look out for factual inaccuracies, contradictions, and errors in the answer.
-For now, additional information that is not present in the ground truth answer should not be considered as incorrect. Finally, sometimes the attachments are not the same (also with answers) but you should evaluate the correctness as a whole. If the answer is a bit different, then it makes sense to have different attachments that support that claim. Of course, we want the answer as a whole to be as close as possible to the grountruth answer.
-Note that sometimes the groundtruth answer is not really answer, but only suggestions. These are usually expected to be an answer, if the question is simply not well defined, and therefore it is better to give suggestions on what to do next, and not give incorrect answers.
-You should assign a score between 0 and 4, where 0 means that the answer is completely incorrect and/or contradicts the ground truth answer, and 4 means that the answer is completely correct.
-You will also provide an analysis of your scoring and why you gave the score you did. Make sure to compare and contrast the input answer with the ground truth.
-You will output the score as a number between 0 and 4 as a float."""
+from prompts import EVAL_CORRECTNESS_PROMPT
+
+def extract_ref_ids(answer):
+	pattern = r'<ref id=\"([^"]+)\"></ref>'
+	ref_ids = re.findall(pattern, answer)
+	if len(ref_ids) == 0:
+		pattern = r'<ref id=\'([^"]+)\'></ref>'
+		ref_ids = re.findall(pattern, answer)
+	if len(refs) == 0:
+		pattern = r'<ref id=([^"\'>]+)></ref>'
+		ref_ids = re.findall(pattern, answer)
+	print(f"found {len(ref_ids)} references")
+	return ref_ids
 
 def all_reward_functions(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	return {
-		"approximate_formatting": reward_output_approximate_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
-		"exact_formatting": reward_output_exact_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
-		"references_formatting": reward_references_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
-		"references_correctness": reward_references_correctness(tokenizer, data_source, solution_str, ground_truth, extra_info),
-		"correctness": reward_answer_correctness_openai(tokenizer, data_source, solution_str, ground_truth, extra_info),
-		"length": reward_output_length(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"approximate_formatting": 1.0 * reward_output_approximate_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"exact_formatting": 2.0 * reward_output_exact_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"references_formatting": 1.0 * reward_references_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"references_correctness": 2.0 * reward_references_correctness(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"correctness": 4.0 * reward_answer_correctness_openai(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"length": 1.0 * reward_output_length(tokenizer, data_source, solution_str, ground_truth, extra_info),
 	}
 	
 
 def reward_output_approximate_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
-	reward = 0
+	reward = 0.0
 	response = solution_str
 	# Count how many keywords are seen - we penalize if too many!
 	# If we see 1, then plus some points!
@@ -55,10 +60,10 @@ def reward_output_exact_formatting(tokenizer, data_source, solution_str, ground_
 		rf"{solution_start}\s*.*?\s*{solution_end}\s*.*?\s*", 
 		flags = re.MULTILINE | re.DOTALL
 	)
-	reward = 0
+	reward = 0.0
 	response = solution_str
 	# Match if format is seen exactly!
-	if match_format.search(response) is not None: reward = 2.0
+	if match_format.search(response) is not None: reward = 1.0
 	return reward
 
 def reward_references_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
@@ -75,12 +80,9 @@ def reward_references_formatting(tokenizer, data_source, solution_str, ground_tr
 	# Calculate reward for thinking part
 	if answer_match:
 		response = answer_match.group(1)
-	else:
-		response = ""
 	
 	# Extract all reference IDs from the response
-	ref_pattern = re.compile(r'<ref id="([^"]+)"></ref>', re.DOTALL)
-	found_refs = ref_pattern.findall(response)
+	found_refs = extract_ref_ids(response)
 	
 	# Check if references are properly formatted
 	if found_refs:
@@ -93,16 +95,15 @@ def reward_references_formatting(tokenizer, data_source, solution_str, ground_tr
 				valid_refs += 1
 		
 		# Calculate score linearly between 0.0 and 2.0 based on proportion of valid refs
-		reward = 1.0 * (valid_refs / len(found_refs))
+		reward = valid_refs / len(found_refs)
 
 	return reward
 
 
 def reward_references_correctness(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
-	reward = 0
+	reward = 0.0
 	response = solution_str
-	retrieved_ids = extra_info["retrieved_ids"]
-	ref_ids = extra_info["ref_ids"]
+	ref_ids = extract_ref_ids(response)
 
 	# Extract the answer part
 	answer_pattern = f"{solution_start}\s*(.*?)\s*{solution_end}"
@@ -131,11 +132,7 @@ def reward_references_correctness(tokenizer, data_source, solution_str, ground_t
 		# Combined F1-like score
 		if precision + recall > 0:
 			f1 = 2 * precision * recall / (precision + recall)
-			reward += f1 * 1.5  # Scale to similar range as other rewards
-
-		# Incorrect ids must be in the retrieved ids
-		if len(retrieved_ids) > 0:
-			reward += 0.5 * len([ref for ref in incorrect_refs if ref in retrieved_ids]) / len(retrieved_ids)
+			reward = f1
 	
 	return reward
 
@@ -159,7 +156,7 @@ def reward_answer_correctness_openai(tokenizer, data_source, solution_str, groun
 	response = pipeline.invoke({"gt_answer": gt_answer, "answer": answer})
 	with open("correctness.log", "a") as f:
 		f.write(str(response) + "\n")
-	return response["score"]
+	return response.get("score", 0.0) / 4.0
 
 
 def reward_output_length(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
