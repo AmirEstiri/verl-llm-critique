@@ -1,6 +1,7 @@
 set -x
 
-#export VLLM_ATTENTION_BACKEND=XFORMERS
+# export VLLM_USE_V1=1
+# export VLLM_ATTENTION_BACKEND=XFORMERS
 
 aurix_train_path=data/train.parquet
 aurix_test_path=data/test.parquet
