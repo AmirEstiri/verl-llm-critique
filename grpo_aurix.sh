@@ -23,6 +23,7 @@ python3 -m examples.data_preprocess.aurix
 
 rm answers.log
 rm rewards.log
+rm correctness.log
 
 PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \

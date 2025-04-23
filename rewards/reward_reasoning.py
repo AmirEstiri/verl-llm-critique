@@ -157,6 +157,8 @@ def reward_answer_correctness_openai(tokenizer, data_source, solution_str, groun
 	])
 	pipeline = prompt | openai_scorer
 	response = pipeline.invoke({"gt_answer": gt_answer, "answer": answer})
+	with open("correctness.log", "a") as f:
+		f.write(response + "\n")	
 	return response["score"]
 
 
