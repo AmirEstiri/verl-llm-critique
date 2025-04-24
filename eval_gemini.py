@@ -1,6 +1,7 @@
 import os
 import glob
 import json
+import re
 
 from dotenv import load_dotenv
 
@@ -19,14 +20,8 @@ class CorrectnessScore:
 	analysis: str
 	score: float
 
-openai_scorer = ChatOpenAI(model="gpt-4.1-nano", temperature=0.1).with_structured_output(CorrectnessScore)
+openai_scorer = ChatOpenAI(model="o3-mini", temperature=1.0).with_structured_output(CorrectnessScore)
 def answer_correctness(answer, gt_answer):
-	# Extract the answer part
-	answer_pattern = r"<answer>\s*(.*?)\s*</answer>"
-	answer_match = re.search(answer_pattern, answer, re.DOTALL)
-	if answer_match:
-		answer = answer_match.group(1)
-
 	prompt = ChatPromptTemplate.from_messages([
 		SystemMessagePromptTemplate.from_template(EVAL_CORRECTNESS_PROMPT),
 		HumanMessagePromptTemplate.from_template("Groundtruth Answer: {gt_answer}\nAnswer: {answer}"),
@@ -46,35 +41,34 @@ for sample in eval_data:
 	question = sample["input"]["query"]
 	gt_answer = sample["expected"]["groundtruth_answer"]
 	document_ids = eval_chunks[question]
-
 	print(f"Retrieved {len(document_ids)} documents")
 
 	documents = "\n".join([f"<document id={doc_id}>{all_data[doc_id]}</document>" for doc_id in document_ids])
 	prompt = ChatPromptTemplate.from_messages([
-		SystemMessagePromptTemplate.from_template(EVAL_CORRECTNESS_PROMPT),
+		SystemMessagePromptTemplate.from_template(SYSTEM_PROMPT),
 		HumanMessagePromptTemplate.from_template("Question: {question}\nDocuments: {documents}"),
 	])
 	gemini_pipeline = prompt | gemini_model
 	response = gemini_pipeline.invoke({"question": question, "documents": documents})    
 	answer = response.content
 
-	score = answer_correctness(answer, gt_answer)
+	answer_pattern = r"<answer>\s*(.*?)\s*</answer>"
+	answer_match = re.search(answer_pattern, answer, re.DOTALL)
+	if answer_match:
+		answer = answer_match.group(1)	
 
-	with open("eval-gemini.log", "a") as f:
-		f.write(f"Question: {question}\n")
-		f.write(f"Generated response: {answer}\n")
-		f.write(f"Ground truth: {gt_answer}\n")
-		f.write(f"Score: {score}\n")
-		f.write("-" * 80 + "\n")
+	score = answer_correctness(answer, gt_answer)
 	
-	scores.append({
-		"question": question,
-		"generated_response": answer,
-		"ground_truth": answer,
-		"score": score
-	})
+	scores.append(
+		{
+			"question": question,
+			"answer": answer,
+			"ground_truth": gt_answer,
+			"correctness": score
+		}
+	)
 	json.dump(scores, open("eval-gemini.json", "w"), indent=4)
 
-
+print(f"Average score for gemini-2.5-pro: {sum([s['correctness'] for s in scores]) / len(scores)}")
 
 

@@ -48,17 +48,20 @@ def all_reward_functions(tokenizer, data_source, solution_str, ground_truth, ext
 def reward_output_xml_tags_penalty(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	reward = 0.0
 	response = solution_str
+
+	allowed_tags = [reasoning_start, reasoning_end, solution_start, solution_end, highlight_start, highlight_end, "document"]
+
 	# Extract all XML tags from the text
 	xml_tags = re.findall(r'<[^>]+>', response)
 	
 	# Count unique tags
-	unique_tags = set(xml_tags)
+	unique_tags = list(set(xml_tags))
+	wrong_tags = [tag for tag in unique_tags if tag not in allowed_tags]
 	
-	if all(
-		unique_tag in [reasoning_start, reasoning_end, solution_start, solution_end, highlight_start, highlight_end]
-		for unique_tag in unique_tags
-	):
-		reward += 1.0
+	if len(wrong_tags) > 0:
+		reward = 1.0 - len(wrong_tags) / len(unique_tags)
+	else:
+		reward = 1.0
 	
 	return reward
 	
@@ -157,7 +160,7 @@ def reward_references_correctness(tokenizer, data_source, solution_str, ground_t
 	return reward
 
 
-openai_scorer = ChatOpenAI(model="gpt-4.1-nano", temperature=0.1).with_structured_output(CorrectnessScore)
+openai_scorer = ChatOpenAI(model="o3-mini", temperature=1.0).with_structured_output(CorrectnessScore)
 def reward_answer_correctness_openai(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	answer = solution_str
 	gt_answer = ground_truth
@@ -168,7 +171,10 @@ def reward_answer_correctness_openai(tokenizer, data_source, solution_str, groun
 	if answer_match:
 		answer = answer_match.group(1)
 	else:
-		answer = ""
+		answer_pattern = r"<answer>\s*(.*?)"
+		answer_match = re.search(answer_pattern, answer, re.DOTALL)
+		if answer_match:
+			answer = answer_match.group(1)
 
 	prompt = ChatPromptTemplate.from_messages([
 		SystemMessagePromptTemplate.from_template(EVAL_CORRECTNESS_PROMPT),

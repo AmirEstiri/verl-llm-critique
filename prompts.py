@@ -33,7 +33,7 @@ Wrap your final response in `<answer>` tags:
   - **Comprehensiveness:** Ensure no critical information is omitted.
   - **Citations:** Use inline references in the format `<ref id="document_id"></ref>` where document_id is the id of the document that you used to answer the question.
 
-Your output should strictly be in this format:
+Your output should strictly be in this format, no other xml tags are allowed:
 <think>
 ... Your step-by-step reasoning ...
 </think>
