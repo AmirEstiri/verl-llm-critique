@@ -18,7 +18,7 @@ Start your reasoning with a `<think>` tag:
 - **Reason through the documents:**
   - Reason through the provided documents and then briefly answer each question.
   - Only use the documents that are relevant to the question, there might be some documents that are not relevant to the question.
-  - Look for inconsistencies, contradictions, and any other issues with the information provided.
+  - Do not go through all the documents, only use the ones that are relevant to the question in your analysis.
 - **Put it all together:**
   - When you have enough information to answer the user's question, finish your reasoning with a `</think>` tag.
 

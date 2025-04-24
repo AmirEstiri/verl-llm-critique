@@ -51,10 +51,16 @@ for sample in tqdm(eval_data):
 	response = gemini_pipeline.invoke({"question": question, "documents": documents})    
 	answer = response.content
 
+	# Extract the answer part
 	answer_pattern = r"<answer>\s*(.*?)\s*</answer>"
 	answer_match = re.search(answer_pattern, answer, re.DOTALL)
 	if answer_match:
-		answer = answer_match.group(1)	
+		answer = answer_match.group(1)
+	else:
+		answer_pattern = r"<answer>(.*?)$"
+		answer_match = re.search(answer_pattern, answer, re.DOTALL)
+		if answer_match:
+			answer = answer_match.group(1)
 
 	score = answer_correctness(answer, gt_answer)
 	

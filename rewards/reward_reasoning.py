@@ -30,7 +30,6 @@ def extract_ref_ids(answer):
 	if len(ref_ids) == 0:
 		pattern = r'<ref id=([^"\'>]+)></ref>'
 		ref_ids = re.findall(pattern, answer)
-	print(f"found {len(ref_ids)} references")
 	return ref_ids
 
 def all_reward_functions(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
@@ -93,7 +92,7 @@ def reward_references_formatting(tokenizer, data_source, solution_str, ground_tr
 	reward = 0.0
 	response = solution_str
 
-	with open("answers.log", "a") as f:
+	with open("logs/answers.log", "a") as f:
 		f.write(solution_str + "\n\n\n" + "#" * 100 + "\n\n\n")
 
 	# Extract the answer part
@@ -171,7 +170,7 @@ def reward_answer_correctness_openai(tokenizer, data_source, solution_str, groun
 	if answer_match:
 		answer = answer_match.group(1)
 	else:
-		answer_pattern = r"<answer>\s*(.*?)"
+		answer_pattern = r"<answer>(.*?)$"
 		answer_match = re.search(answer_pattern, answer, re.DOTALL)
 		if answer_match:
 			answer = answer_match.group(1)
@@ -182,7 +181,7 @@ def reward_answer_correctness_openai(tokenizer, data_source, solution_str, groun
 	])
 	pipeline = prompt | openai_scorer
 	response = pipeline.invoke({"gt_answer": gt_answer, "answer": answer})
-	with open("correctness.log", "a") as f:
+	with open("logs/correctness.log", "a") as f:
 		f.write(str(response) + "\n")
 	return response.get("score", 0.0) / 4.0
 
@@ -204,7 +203,7 @@ def reward_output_length(tokenizer, data_source, solution_str, ground_truth, ext
 		thinking_text = think_match.group(1)
 		thinking_tokens = len(tokenizer.encode(thinking_text))
 	
-		reward += 0.5 * min(thinking_tokens / 8000, 1.0)
+		reward += 0.5 * min(thinking_tokens / 3000, 1.0)
 	
 	# Calculate reward for answer part
 	if answer_match:

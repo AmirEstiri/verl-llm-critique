@@ -5,8 +5,9 @@ export VLLM_ATTENTION_BACKEND=XFORMERS
 
 aurix_train_path=data/train.parquet
 aurix_test_path=data/test.parquet
-# model_path=Qwen/Qwen2-7B-Instruct
-model_path=Qwen/Qwen2.5-32B-Instruct
+
+model_path=Qwen/Qwen2-7B-Instruct
+# model_path=Qwen/Qwen2.5-32B-Instruct
 
 train_files="['$aurix_train_path']"
 test_files="['$aurix_test_path']"
@@ -14,17 +15,17 @@ test_files="['$aurix_test_path']"
 batch_size=8
 ppo_batch_size=64
 input_length=120000
-output_length=10000
+output_length=4000
 max_length=$((input_length + output_length))
-log_prob_max_token_len_per_gpu=$((max_length / 3))
 ppo_max_token_len_per_gpu=$((max_length / 3))
+log_prob_max_token_len_per_gpu=$((max_length / 3))
 ulysses_sequence_parallel_size=4
 
 python3 -m examples.data_preprocess.aurix
 
-rm answers.log
-rm rewards.log
-rm correctness.log
+rm logs/answers.log
+rm logs/rewards.log
+rm logs/correctness.log
 
 PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
@@ -54,16 +55,20 @@ PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.fsdp_config.param_offload=True \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
     actor_rollout_ref.rollout.temperature=0.1 \
+    actor_rollout_ref.rollout.top_k=-1 \
+    actor_rollout_ref.rollout.top_p=10 \
+    actor_rollout_ref.rollout.prompt_length=$input_length \
+    actor_rollout_ref.rollout.response_length=$output_length \
     actor_rollout_ref.rollout.enforce_eager=False \
     actor_rollout_ref.rollout.free_cache_engine=False \
     actor_rollout_ref.rollout.log_prob_use_dynamic_bsz=True \
     actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=$log_prob_max_token_len_per_gpu \
     actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
     actor_rollout_ref.rollout.name=vllm \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
     actor_rollout_ref.rollout.enable_chunked_prefill=False \
     actor_rollout_ref.rollout.max_num_batched_tokens=$max_length \
-    actor_rollout_ref.rollout.n=8 \
+    actor_rollout_ref.rollout.n=5 \
     actor_rollout_ref.ref.ulysses_sequence_parallel_size=$ulysses_sequence_parallel_size \
     actor_rollout_ref.ref.log_prob_use_dynamic_bsz=True \
     actor_rollout_ref.ref.log_prob_max_token_len_per_gpu=$log_prob_max_token_len_per_gpu \

@@ -80,10 +80,16 @@ for sample in tqdm(eval_data):
 	chat_outputs = llm.chat(conversation, sampling_params=sampling_params)
 	answer = chat_outputs[0].outputs[0].text
 
+	# Extract the answer part
 	answer_pattern = r"<answer>\s*(.*?)\s*</answer>"
 	answer_match = re.search(answer_pattern, answer, re.DOTALL)
 	if answer_match:
-		answer = answer_match.group(1)	    
+		answer = answer_match.group(1)
+	else:
+		answer_pattern = r"<answer>(.*?)$"
+		answer_match = re.search(answer_pattern, answer, re.DOTALL)
+		if answer_match:
+			answer = answer_match.group(1)	    
 
 	score = answer_correctness(answer, gt_answer)
 	
