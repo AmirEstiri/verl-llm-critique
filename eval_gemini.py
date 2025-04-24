@@ -2,7 +2,7 @@ import os
 import glob
 import json
 import re
-
+from tqdm import tqdm
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -37,11 +37,10 @@ all_data = json.load(open("data/all_data.json"))
 gemini_model = ChatGoogleGenerativeAI(model="gemini-2.5-pro-preview-03-25", temperature=0.1, max_tokens=1000000)
 
 scores = []
-for sample in eval_data:
+for sample in tqdm(eval_data):
 	question = sample["input"]["query"]
 	gt_answer = sample["expected"]["groundtruth_answer"]
 	document_ids = eval_chunks[question]
-	print(f"Retrieved {len(document_ids)} documents")
 
 	documents = "\n".join([f"<document id={doc_id}>{all_data[doc_id]}</document>" for doc_id in document_ids])
 	prompt = ChatPromptTemplate.from_messages([

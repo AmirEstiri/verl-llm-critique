@@ -6,7 +6,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
+from tqdm import tqdm
 import glob
+import re
 import json
 from prompts import SYSTEM_PROMPT, EVAL_CORRECTNESS_PROMPT
 
@@ -58,11 +60,10 @@ sampling_params = SamplingParams(
 
 
 scores = []
-for sample in eval_data:
+for sample in tqdm(eval_data):
 	question = sample["input"]["query"]
 	gt_answer = sample["expected"]["groundtruth_answer"]
 	document_ids = eval_chunks[question]
-	print(f"Retrieved {len(document_ids)} documents")
 
 	# Format input with system prompt and question
 	conversation = [
@@ -85,9 +86,9 @@ for sample in eval_data:
 		"question": question,
 		"generated_response": answer,
 		"ground_truth": gt_answer,
-		"score": score
+		"correctness": score
 	})
 
 	json.dump(scores, open("eval.json", "w"), indent=4)
 
-print(f"Average score for Qwen2-7B-Instruct: {sum([s['score'] for s in scores]) / len(scores)}")
+print(f"Average score for Qwen2-7B-Instruct: {sum([s['correctness'] for s in scores]) / len(scores)}")
