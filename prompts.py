@@ -32,7 +32,15 @@ Wrap your final response in `<answer>` tags:
   - **Accuracy:** Base answers solely on the provided context and documents. Do not fabricate information. If the information is not provided in the documents, mention that in your answer.
   - **Comprehensiveness:** Ensure no critical information is omitted.
   - **Citations:** Use inline references in the format `<ref id="document_id"></ref>` where document_id is the id of the document that you used to answer the question.
-Finally, finish your answer with a `</answer>` tag."""
+
+Your output should strictly be in this format:
+<think>
+... Your step-by-step reasoning ...
+</think>
+<answer>
+<mark>... Your one-sentence summary ...</mark>
+... Your detailed final answer ...
+</answer>"""
 
 
 EVAL_CORRECTNESS_PROMPT = """You are a senior hardware engineer and your task is to evaluate an answer to a technical question by comparing it to a reference answer. Sometimes answers have attachments, so illustrate something about the answer.

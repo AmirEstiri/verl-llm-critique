@@ -1,9 +1,24 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer
+from vllm import LLM, SamplingParams
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 import os
 import glob
 import json
 from prompts import SYSTEM_PROMPT, EVAL_CORRECTNESS_PROMPT
+
+from langchain.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
+from langchain_openai import ChatOpenAI
+
+from dataclasses import dataclass
+
+@dataclass
+class CorrectnessScore:
+	analysis: str
+	score: float
 
 openai_scorer = ChatOpenAI(model="gpt-4.1-nano", temperature=0.1).with_structured_output(CorrectnessScore)
 def answer_correctness(answer, gt_answer):
@@ -21,75 +36,61 @@ def answer_correctness(answer, gt_answer):
 	response = pipeline.invoke({"gt_answer": gt_answer, "answer": answer})
 	return response.get("score", 0.0)
 
-def load_model_weights(model):
-    checkpoint_dir = "checkpoints/verl_grpo_aurix/qwen2_7b_qa_reasoning/global_step_20/actor/"
-    # Find all .pt files in the checkpoint directory
-    weight_files = glob.glob(os.path.join(checkpoint_dir, "*.pt"))
-    
-    # Load each weight file into the model
-    for weight_file in weight_files:
-        state_dict = torch.load(weight_file)
-        model.load_state_dict(state_dict, strict=False)
-        
-    return model
-
 eval_data = json.load(open("data/Neal-Simplified.json"))
 eval_chunks = json.load(open("data/Neal-Simplified_chunks.json"))
 all_data = json.load(open("data/all_data.json"))
 
 # Initialize tokenizer and model
 model_path = "Qwen/Qwen2-7B-Instruct"
-tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-model = AutoModelForCausalLM.from_pretrained(model_path, trust_remote_code=True)
+checkpoint_dir = "checkpoints/verl_grpo_aurix/qwen2_7b_qa_reasoning/global_step_20/actor/"
+tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2-7B-Instruct", trust_remote_code=True)
+llm = LLM(
+    model=checkpoint_dir,              # Path to your folder
+    trust_remote_code=True,                   # Allow custom Qwen code
+    engine_args={
+        "load_format": "pt",                  # Load weights from .pt files
+        "config_format": "hf",                # Load config in Hugging Face format
+    }
+)
+sampling_params = SamplingParams(
+    temperature=1.0,
+    top_p=0.8,
+    repetition_penalty=1.05,
+    max_tokens=10000
+)
 
-# Load the fine-tuned weights
-model = load_model_weights(model)
-model = model.cuda()
-model.eval()
 
 scores = []
 for sample in eval_data:
     question = sample["input"]["query"]
     gt_answer = sample["expected"]["groundtruth_answer"]
     document_ids = eval_chunks[question]
+    print(f"Retrieved {len(document_ids)} documents")
+    
     # Format input with system prompt and question
-    prompt = [
+    conversation = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": f"<question>{question}</question>" + "\n".join([f"<document id={doc_id}>{all_data[doc_id]}</document>" for doc_id in document_ids])}
     ]
-    
-    # Convert prompt to string format expected by model
-    prompt_str = ""
-    for msg in prompt:
-        if msg["role"] == "system":
-            prompt_str += f"<|im_start|>system\n{msg['content']}<|im_end|>\n"
-        else:
-            prompt_str += f"<|im_start|>user\n{msg['content']}<|im_end|>\n"
-    prompt_str += "<|im_start|>assistant\n"
 
-    # Tokenize input
-    inputs = tokenizer(prompt_str, return_tensors="pt").to("cuda")
-    
-    # Generate response
-    with torch.no_grad():
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=512,
-            temperature=0.7,
-            top_p=0.9,
-            pad_token_id=tokenizer.pad_token_id,
-            eos_token_id=tokenizer.eos_token_id
-        )
-    
-    # Decode response
-    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    # Generate the assistant’s reply:
+    chat_outputs = llm.chat(conversation, sampling_params=sampling_params)
+
+    # Print the reply text:
+    for out in chat_outputs:
+        print(out.outputs[0].text)
+
+    break
+
     score = answer_correctness(response, answer)
+
     with open("eval.log", "a") as f:
         f.write(f"Question: {question}\n")
         f.write(f"Generated response: {response}\n")
         f.write(f"Ground truth: {answer}\n")
         f.write(f"Score: {score}\n")
         f.write("-" * 80 + "\n")
+    
     scores.append({
         "question": question,
         "generated_response": response,
