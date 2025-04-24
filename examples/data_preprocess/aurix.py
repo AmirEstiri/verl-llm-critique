@@ -16,7 +16,7 @@ def extract_ref_ids(answer):
 	if len(ref_ids) == 0:
 		pattern = r'<ref id=\'([^"]+)\'></ref>'
 		ref_ids = re.findall(pattern, answer)
-	if len(refs) == 0:
+	if len(ref_ids) == 0:
 		pattern = r'<ref id=([^"\'>]+)></ref>'
 		ref_ids = re.findall(pattern, answer)
 	print(f"found {len(ref_ids)} references")
