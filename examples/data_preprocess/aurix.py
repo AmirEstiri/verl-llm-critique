@@ -10,6 +10,18 @@ import re
 from datasets import Dataset
 from prompts import SYSTEM_PROMPT
 
+def extract_ref_ids(answer):
+	pattern = r'<ref id=\"([^"]+)\"></ref>'
+	ref_ids = re.findall(pattern, answer)
+	if len(ref_ids) == 0:
+		pattern = r'<ref id=\'([^"]+)\'></ref>'
+		ref_ids = re.findall(pattern, answer)
+	if len(refs) == 0:
+		pattern = r'<ref id=([^"\'>]+)></ref>'
+		ref_ids = re.findall(pattern, answer)
+	print(f"found {len(ref_ids)} references")
+	return ref_ids
+
 
 def make_map_fn(split):
 	def process_fn(example, idx):

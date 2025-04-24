@@ -54,8 +54,7 @@ llm = LLM(
 )
 
 sampling_params = SamplingParams(
-	temperature=1.0,
-	top_p=0.8,
+	temperature=0.1,
 	repetition_penalty=1.05,
 	max_tokens=130000,
 )
