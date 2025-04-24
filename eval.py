@@ -44,13 +44,15 @@ all_data = json.load(open("data/all_data.json"))
 
 # Initialize tokenizer and model
 model_path = "Qwen/Qwen2-7B-Instruct"
-checkpoint_dir = "checkpoints/verl_grpo_aurix/qwen2_7b_qa_reasoning/global_step_80/actor/"
+checkpoint_dir = "/root/verl-llm-critique/checkpoints/verl_grpo_aurix/qwen2_7b_qa_reasoning/hf_80"
+tokenizer = AutoTokenizer.from_pretrained(model_path)
+
 llm = LLM(
-	model=model_path,
-	trust_remote_code=True,
-	# load_format="pt",
-	tensor_parallel_size=4,
+	model=checkpoint_dir,
+	tokenizer=model_path,
+    tensor_parallel_size=4
 )
+
 sampling_params = SamplingParams(
 	temperature=1.0,
 	top_p=0.8,
@@ -65,10 +67,14 @@ for sample in tqdm(eval_data):
 	gt_answer = sample["expected"]["groundtruth_answer"]
 	document_ids = eval_chunks[question]
 
+	context = f"<question>{question}</question>" + "\n".join([f"<document id={doc_id}>{all_data[doc_id]}</document>" for doc_id in document_ids])
+	tokens = tokenizer.encode(context, truncation=True, max_length=120000)
+	context = tokenizer.decode(tokens)
+
 	# Format input with system prompt and question
 	conversation = [
 		{"role": "system", "content": SYSTEM_PROMPT},
-		{"role": "user", "content": f"<question>{question}</question>" + "\n".join([f"<document id={doc_id}>{all_data[doc_id]}</document>" for doc_id in document_ids])}
+		{"role": "user", "content": context}
 	]
 
 	# Generate the assistant’s reply:
@@ -89,6 +95,6 @@ for sample in tqdm(eval_data):
 		"correctness": score
 	})
 
-	json.dump(scores, open("eval.json", "w"), indent=4)
+	json.dump(scores, open("eval_grpo.json", "w"), indent=4)
 
 print(f"Average score for Qwen2-7B-Instruct: {sum([s['correctness'] for s in scores]) / len(scores)}")

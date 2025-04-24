@@ -11,5 +11,8 @@
 }  
 5. Run `sh grpo_aurix.sh`
 
+6. Convert to HF format:  
+`python3 scripts/model_merger.py --hf_model_path Qwen/Qwen2-7B-Instruct --local_dir=checkpoints/verl_grpo_aurix/qwen2_7b_qa_reasoning/global_step_80/actor/ --target_dir checkpoints/verl_grpo_aurix/qwen2_7b_qa_reasoning/hf_80/ --backend fsdp`
+
 ## TODOs 
 Enable LoRA
