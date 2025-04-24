@@ -16,6 +16,8 @@ reasoning_start = "<think>"
 reasoning_end   = "</think>"
 solution_start = "<answer>"
 solution_end = "</answer>"
+highlight_start = "<mark>"
+highlight_end = "</mark>"
 
 from prompts import EVAL_CORRECTNESS_PROMPT
 
@@ -34,12 +36,31 @@ def extract_ref_ids(answer):
 def all_reward_functions(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	return {
 		"approximate_formatting": 1.0 * reward_output_approximate_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"xml_tags_penalty": 1.0 * reward_output_xml_tags_penalty(tokenizer, data_source, solution_str, ground_truth, extra_info),
 		"exact_formatting": 2.0 * reward_output_exact_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
 		"references_formatting": 1.0 * reward_references_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
 		"references_correctness": 2.0 * reward_references_correctness(tokenizer, data_source, solution_str, ground_truth, extra_info),
-		"correctness": 4.0 * reward_answer_correctness_openai(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"correctness": 5.0 * reward_answer_correctness_openai(tokenizer, data_source, solution_str, ground_truth, extra_info),
 		"length": 1.0 * reward_output_length(tokenizer, data_source, solution_str, ground_truth, extra_info),
 	}
+
+
+def reward_output_xml_tags_penalty(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
+	reward = 0.0
+	response = solution_str
+	# Extract all XML tags from the text
+	xml_tags = re.findall(r'<[^>]+>', response)
+	
+	# Count unique tags
+	unique_tags = set(xml_tags)
+	
+	if all(
+		unique_tag in [reasoning_start, reasoning_end, solution_start, solution_end, highlight_start, highlight_end]
+		for unique_tag in unique_tags
+	):
+		reward += 1.0
+	
+	return reward
 	
 
 def reward_output_approximate_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
@@ -56,8 +77,7 @@ def reward_output_approximate_formatting(tokenizer, data_source, solution_str, g
 
 def reward_output_exact_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	match_format = re.compile(
-		rf"{reasoning_start}\s*.*?\s*{reasoning_end}\s*.*?\s*"\
-		rf"{solution_start}\s*.*?\s*{solution_end}\s*.*?\s*", 
+		rf"{reasoning_start}.*?{reasoning_end}\s*{solution_start}.*?{solution_end}", 
 		flags = re.MULTILINE | re.DOTALL
 	)
 	reward = 0.0
@@ -147,6 +167,8 @@ def reward_answer_correctness_openai(tokenizer, data_source, solution_str, groun
 	answer_match = re.search(answer_pattern, answer, re.DOTALL)
 	if answer_match:
 		answer = answer_match.group(1)
+	else:
+		answer = ""
 
 	prompt = ChatPromptTemplate.from_messages([
 		SystemMessagePromptTemplate.from_template(EVAL_CORRECTNESS_PROMPT),
