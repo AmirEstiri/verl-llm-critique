@@ -17,9 +17,9 @@ ppo_batch_size=64
 input_length=120000
 output_length=4000
 max_length=$((input_length + output_length))
-ppo_max_token_len_per_gpu=$((max_length / 3))
-log_prob_max_token_len_per_gpu=$((max_length / 3))
-ulysses_sequence_parallel_size=4
+ppo_max_token_len_per_gpu=$((max_length / 1)) # Decrease if OOM
+log_prob_max_token_len_per_gpu=$((max_length / 1)) # Decrease if OOM
+ulysses_sequence_parallel_size=2 # Increase if OOM
 
 python3 -m examples.data_preprocess.aurix
 
@@ -29,6 +29,7 @@ rm logs/correctness.log
 
 PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
+    algorithm.use_kl_in_reward=False \
     custom_reward_function.name=all_reward_functions \
     custom_reward_function.path=rewards/reward_reasoning.py \
     data.train_files="$train_files" \
@@ -46,6 +47,8 @@ PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.optim.lr_warmup_steps_ratio=0.1 \
     actor_rollout_ref.actor.ulysses_sequence_parallel_size=$ulysses_sequence_parallel_size \
     actor_rollout_ref.actor.use_dynamic_bsz=True \
+    actor_rollout_ref.actor.grad_clip=1.0 \
+    actor_rollout_ref.actor.clip_ratio=0.2 \
     actor_rollout_ref.actor.ppo_mini_batch_size=$ppo_batch_size \
     actor_rollout_ref.actor.ppo_max_token_len_per_gpu=$ppo_max_token_len_per_gpu \
     actor_rollout_ref.actor.use_kl_loss=True \
@@ -54,6 +57,7 @@ PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.entropy_coeff=0 \
     actor_rollout_ref.actor.fsdp_config.param_offload=True \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
+    actor_rollout_ref.actor.fsdp_config.model_dtype=bfloat16 \
     actor_rollout_ref.rollout.temperature=0.2 \
     actor_rollout_ref.rollout.top_k=-1 \
     actor_rollout_ref.rollout.prompt_length=$input_length \
@@ -64,7 +68,7 @@ PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=$log_prob_max_token_len_per_gpu \
     actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
     actor_rollout_ref.rollout.name=vllm \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.7 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
     actor_rollout_ref.rollout.enable_chunked_prefill=False \
     actor_rollout_ref.rollout.max_num_batched_tokens=$max_length \
     actor_rollout_ref.rollout.n=5 \
@@ -72,7 +76,6 @@ PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.ref.log_prob_use_dynamic_bsz=True \
     actor_rollout_ref.ref.log_prob_max_token_len_per_gpu=$log_prob_max_token_len_per_gpu \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
-    algorithm.use_kl_in_reward=False \
     trainer.critic_warmup=0 \
     trainer.logger=['console'] \
     trainer.project_name='verl_grpo_aurix' \

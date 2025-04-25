@@ -48,7 +48,7 @@ checkpoint_dir = "/root/verl-llm-critique/checkpoints/verl_grpo_aurix/qwen2_7b_q
 tokenizer = AutoTokenizer.from_pretrained(model_path)
 
 llm = LLM(
-	model=checkpoint_dir,
+	model=model_path,
 	tokenizer=model_path,
     tensor_parallel_size=4
 )
@@ -100,6 +100,6 @@ for sample in tqdm(eval_data):
 		"correctness": score
 	})
 
-	json.dump(scores, open("eval_grpo.json", "w"), indent=4)
+	json.dump(scores, open("evals/eval_grpo.json", "w"), indent=4)
 
 print(f"Average score for Qwen2-7B-Instruct: {sum([s['correctness'] for s in scores]) / len(scores)}")

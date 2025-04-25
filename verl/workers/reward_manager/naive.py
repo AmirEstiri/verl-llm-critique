@@ -98,7 +98,7 @@ class NaiveRewardManager:
         all_scores = {
             k: sum(v) / len(v) for k, v in all_scores.items()
         }
-        all_scores["all"] = sum(all_scores.values())
+        all_scores["score"] = sum(all_scores.values())
         all_scores = {k: f"{v:.2f}" for k, v in all_scores.items()}
         log_msg = f"[scores]: {all_scores} avg of {len(data)}"
         print(log_msg)

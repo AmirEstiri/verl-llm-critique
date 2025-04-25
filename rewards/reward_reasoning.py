@@ -48,7 +48,7 @@ def reward_output_xml_tags_penalty(tokenizer, data_source, solution_str, ground_
 	reward = 0.0
 	response = solution_str
 
-	allowed_tags = [reasoning_start, reasoning_end, solution_start, solution_end, highlight_start, highlight_end, "document"]
+	allowed_tags = [reasoning_start, reasoning_end, solution_start, solution_end, highlight_start, highlight_end, "ref"]
 
 	# Extract all XML tags from the text
 	xml_tags = re.findall(r'<[^>]+>', response)
@@ -58,7 +58,7 @@ def reward_output_xml_tags_penalty(tokenizer, data_source, solution_str, ground_
 	wrong_tags = [tag for tag in unique_tags if tag not in allowed_tags]
 	
 	if len(wrong_tags) > 0:
-		reward = 1.0 - len(wrong_tags) / len(unique_tags)
+		reward = 1.0 - len(wrong_tags) / len(allowed_tags)
 	else:
 		reward = 1.0
 	
@@ -141,6 +141,9 @@ def reward_references_correctness(tokenizer, data_source, solution_str, ground_t
 	pattern = r'<ref id="([^"]+)"></ref>'
 	found_refs = re.findall(pattern, response)
 	
+	found_refs = list(set(found_refs))
+	ref_ids = list(set(ref_ids))
+	
 	# Calculate reward based on reference accuracy
 	if len(ref_ids) > 0:
 		# Reward for correct references
@@ -198,17 +201,17 @@ def reward_output_length(tokenizer, data_source, solution_str, ground_truth, ext
 	answer_pattern = r"<answer>\s*(.*?)\s*</answer>"
 	answer_match = re.search(answer_pattern, response, re.DOTALL)
 	if answer_match:
-		answer = answer_match.group(1)
+		answer_text = answer_match.group(1)
 	else:
 		answer_pattern = r"<answer>(.*?)$"
 		answer_match = re.search(answer_pattern, response, re.DOTALL)
 		if answer_match:
-			answer = answer_match.group(1)
+			answer_text = answer_match.group(1)
 		else:
-			answer = ""
+			answer_text = ""
 
 	# Calculate reward for answer part
-	reward += 0.5 if 500 <= len(tokenizer.encode(answer)) <= 1000 else 0.0			
+	reward += 0.5 if 500 <= len(tokenizer.encode(answer_text)) <= 1000 else 0.0
 	
 	# Calculate reward for thinking part
 	if think_match:

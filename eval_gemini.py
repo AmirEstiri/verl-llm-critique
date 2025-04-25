@@ -72,7 +72,7 @@ for sample in tqdm(eval_data):
 			"correctness": score
 		}
 	)
-	json.dump(scores, open("eval-gemini.json", "w"), indent=4)
+	json.dump(scores, open("evals/eval-gemini.json", "w"), indent=4)
 
 print(f"Average score for gemini-2.5-pro: {sum([s['correctness'] for s in scores]) / len(scores)}")
 
