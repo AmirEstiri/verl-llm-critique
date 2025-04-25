@@ -198,19 +198,21 @@ def reward_output_length(tokenizer, data_source, solution_str, ground_truth, ext
 	answer_pattern = r"<answer>\s*(.*?)\s*</answer>"
 	answer_match = re.search(answer_pattern, response, re.DOTALL)
 	if answer_match:
-		response = answer_match.group(1)
+		answer = answer_match.group(1)
 	else:
 		answer_pattern = r"<answer>(.*?)$"
 		answer_match = re.search(answer_pattern, response, re.DOTALL)
 		if answer_match:
-			response = answer_match.group(1)
+			answer = answer_match.group(1)
+		else:
+			answer = ""
+
+	# Calculate reward for answer part
+	reward += 0.5 if 500 <= len(tokenizer.encode(response)) <= 1000 else 0.0			
 	
 	# Calculate reward for thinking part
 	if think_match:
 		thinking_text = think_match.group(1)
 		reward += 0.5 if 1000 <= len(tokenizer.encode(thinking_text)) <= 3000 else 0.0
-	
-	# Calculate reward for answer part
-	reward += 0.5 if 500 <= len(tokenizer.encode(response)) <= 1000 else 0.0
 	
 	return reward
