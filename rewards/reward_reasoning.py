@@ -79,7 +79,7 @@ def reward_output_approximate_formatting(tokenizer, data_source, solution_str, g
 
 def reward_output_exact_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	match_format = re.compile(
-		rf"{reasoning_start}.*?{reasoning_end}\s*{solution_start}.*?{solution_end}", 
+		rf"<think>.*?</think>\s*<answer>.*?</answer>", 
 		flags = re.MULTILINE | re.DOTALL
 	)
 	reward = 0.0
@@ -195,22 +195,22 @@ def reward_output_length(tokenizer, data_source, solution_str, ground_truth, ext
 	think_match = re.search(think_pattern, response, re.DOTALL)
 	
 	# Extract the answer part
-	answer_pattern = f"{solution_start}\s*(.*?)\s*{solution_end}"
+	answer_pattern = r"<answer>\s*(.*?)\s*</answer>"
 	answer_match = re.search(answer_pattern, response, re.DOTALL)
+	if answer_match:
+		response = answer_match.group(1)
+	else:
+		answer_pattern = r"<answer>(.*?)$"
+		answer_match = re.search(answer_pattern, response, re.DOTALL)
+		if answer_match:
+			response = answer_match.group(1)
 	
 	# Calculate reward for thinking part
 	if think_match:
 		thinking_text = think_match.group(1)
-		thinking_tokens = len(tokenizer.encode(thinking_text))
-	
-		reward += 0.5 * min(thinking_tokens / 3000, 1.0)
+		reward += 0.5 if 1000 <= len(tokenizer.encode(thinking_text)) <= 3000 else 0.0
 	
 	# Calculate reward for answer part
-	if answer_match:
-		answer_text = answer_match.group(1)
-		answer_tokens = len(tokenizer.encode(answer_text))
-		
-		if answer_tokens <= 1000:
-			reward += 0.5
+	reward += 0.5 if 500 <= len(tokenizer.encode(response)) <= 1000 else 0.0
 	
 	return reward
