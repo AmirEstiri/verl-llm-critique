@@ -208,7 +208,7 @@ def reward_output_length(tokenizer, data_source, solution_str, ground_truth, ext
 			answer = ""
 
 	# Calculate reward for answer part
-	reward += 0.5 if 500 <= len(tokenizer.encode(response)) <= 1000 else 0.0			
+	reward += 0.5 if 500 <= len(tokenizer.encode(answer)) <= 1000 else 0.0			
 	
 	# Calculate reward for thinking part
 	if think_match:
