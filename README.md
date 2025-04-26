@@ -2,7 +2,7 @@
 0. Assuming you have either installed all packages or deployed using verl docker.  
 1. `pip install -r requirements_grpo.txt`
 2. Add `OPENAI_API_KEY` and `GOOGLE_API_KEY` to .env
-3. Download the base model from HF: `huggingface-cli download Qwen/Qwen2-7B-Instruct`
+3. Download the base model from HF: `huggingface-cli download Qwen/Qwen2.5-32B-Instruct`
 4. To enable long context training, add this to the `config.json` of model:  
 
 ```
