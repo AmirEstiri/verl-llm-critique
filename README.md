@@ -13,11 +13,11 @@
 }
 ```  
 
-Path to config file: `~/.cache/huggingface/hub/models--*/snapshots/config.json`  
+Path to config file: `~/.cache/huggingface/hub/models--*/snapshots/*/config.json`  
 
 5. Run `sh grpo_aurix.sh`
 
-6. Convert to HF format:  
+6. Convert checkpoint to HF format:  
 `python3 scripts/model_merger.py --hf_model_path Qwen/Qwen2-7B-Instruct --local_dir=checkpoints/*/*/global_step_x/actor/ --target_dir checkpoints/hf_eval_ckpt --backend fsdp`
 
 7. Run evaluation on sample eval dataset: `python3 eval.py`  

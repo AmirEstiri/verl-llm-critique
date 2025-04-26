@@ -6,6 +6,7 @@ import argparse
 import os
 import json
 import re
+import random
 
 from datasets import Dataset
 from prompts import SYSTEM_PROMPT
@@ -25,15 +26,26 @@ def extract_ref_ids(answer):
 
 def make_map_fn(split):
 	def process_fn(example, idx):
+		retrieved_chunk_ids = [s for s in qc_data.get(example["question"], []) if s in all_data][:5]
+		source_chunk_ids = [
+			s for s in all_data_similar[example["original_chunk_id"]] 
+			if s in all_data
+		] + [example["original_chunk_id"]] if example["original_chunk_id"] in all_data else []
+		chunk_ids = source_chunk_ids + retrieved_chunk_ids
+		random.shuffle(chunk_ids)
+		chunk_ids = list(set(chunk_ids))
+		print(f"Context has {len(chunk_ids)} chunks")
+		chunk_id_mapping = {
+			chunk_id: i for i, chunk_id in enumerate(chunk_ids)
+		}
 		data = {
 			"data_source": data_source,                
 			"prompt": [
 					{"role": "system", "content": SYSTEM_PROMPT},
 					{"role": "user",   "content": f"<question>{example['question']}</question>" + "\n".join(
 							[
-								f"<document id={chunk_id}>{all_data[chunk_id]}</document>" 
-								for chunk_id in qc_data.get(example["question"], [])
-								if chunk_id in all_data
+								f"<document id={chunk_id_mapping[chunk_id]}>{all_data[chunk_id]}</document>" 
+								for chunk_id in chunk_ids if chunk_id in chunk_id_mapping
 							]
 						),
 					}
@@ -43,8 +55,10 @@ def make_map_fn(split):
 			"extra_info": {
 				"split": split,
 				"index": idx,
-				"answer": example["gemini_answer"].strip(),
+				"answer": example["answer"].strip(),
 				"question": example["question"],
+				"ref_ids": [chunk_id_mapping[chunk_id] for chunk_id in example["ref_chunk_ids"] if chunk_id in chunk_id_mapping],
+				"ref_chunk_ids": example["ref_chunk_ids"]
 			}
 		}
 		return data
@@ -58,17 +72,17 @@ if __name__ == "__main__":
 	args = parser.parse_args()
 
 	data_source = "voltai/aurix"
-	qa_data = json.load(open(os.path.join(args.data_dir, "gemini_qa_data.json")))
+	qa_data = json.load(open(os.path.join(args.data_dir, "openai_qa_data.json")))
 	qc_data = json.load(open(os.path.join(args.data_dir, "qc_data.json")))
 	all_data = json.load(open(os.path.join(args.data_dir, "all_data.json")))
-	retrieval_ids = json.load(open(os.path.join(args.data_dir, "all_data_similar.json")))	
+	all_data_similar = json.load(open(os.path.join(args.data_dir, "all_data_similar.json")))	
 
 	filtered_data = []
 	for sample in qa_data:
 		if len(qc_data.get(sample["question"], [])) == 0:
 			continue
-		sample["ref_ids"] = extract_ref_ids(sample["gemini_answer"])
-		if len(sample["ref_ids"]) == 0:
+		sample["ref_chunk_ids"] = extract_ref_ids(sample["answer"])
+		if len(sample["ref_chunk_ids"]) == 0:
 			continue
 		filtered_data.append(sample)
 

@@ -16,8 +16,6 @@ reasoning_start = "<think>"
 reasoning_end   = "</think>"
 solution_start = "<answer>"
 solution_end = "</answer>"
-highlight_start = "<mark>"
-highlight_end = "</mark>"
 
 from prompts import EVAL_CORRECTNESS_PROMPT
 
@@ -94,14 +92,6 @@ def reward_references_formatting(tokenizer, data_source, solution_str, ground_tr
 
 	with open("logs/answers.log", "a") as f:
 		f.write(solution_str + "\n\n\n" + "#" * 100 + "\n\n\n")
-
-	# Extract the answer part
-	answer_pattern = f"{solution_start}\s*(.*?)\s*{solution_end}"
-	answer_match = re.search(answer_pattern, response, re.DOTALL)
-	
-	# Calculate reward for thinking part
-	if answer_match:
-		response = answer_match.group(1)
 	
 	# Extract all reference IDs from the response
 	found_refs = extract_ref_ids(response)
@@ -125,39 +115,26 @@ def reward_references_formatting(tokenizer, data_source, solution_str, ground_tr
 def reward_references_correctness(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	reward = 0.0
 	response = solution_str
-	ref_ids = extract_ref_ids(response)
+	ref_ids = list(set(extract_ref_ids(response)))
+	gt_ref_ids = list(set(extra_info["ref_ids"]))
 
-	# Extract the answer part
-	answer_pattern = f"{solution_start}\s*(.*?)\s*{solution_end}"
-	answer_match = re.search(answer_pattern, response, re.DOTALL)
-	
-	# Calculate reward for thinking part
-	if answer_match:
-		response = answer_match.group(1)
-	else:
-		response = ""
+	if not gt_ref_ids and not ref_ids:
+		return 1.0  # Both are empty, perfect match in terms of references
+	if not gt_ref_ids or not ref_ids:
+		return 0.0 # One is empty, the other is not, zero overlap
 
-	# Extract all reference IDs from the response
-	pattern = r'<ref id="([^"]+)"></ref>'
-	found_refs = re.findall(pattern, response)
-	
-	found_refs = list(set(found_refs))
-	ref_ids = list(set(ref_ids))
-	
-	# Calculate reward based on reference accuracy
-	if len(ref_ids) > 0:
-		# Reward for correct references
-		correct_refs = [ref for ref in found_refs if ref in ref_ids]
-		incorrect_refs = [ref for ref in found_refs if ref not in ref_ids]
-		# Reward for precision (correct refs / total refs found)
-		precision = len(correct_refs) / max(len(found_refs), 1)
-		# Reward for recall (correct refs / total expected refs)
-		recall = len(correct_refs) / len(ref_ids)
-		
-		# Combined F1-like score
-		if precision + recall > 0:
-			f1 = 2 * precision * recall / (precision + recall)
-			reward = f1
+	set_ref_ids = set(ref_ids)
+	set_gt_ref_ids = set(gt_ref_ids)
+
+	true_positives = len(set_ref_ids.intersection(set_gt_ref_ids))
+	false_positives = len(set_ref_ids.difference(set_gt_ref_ids))
+	false_negatives = len(set_gt_ref_ids.difference(set_ref_ids))
+
+	precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
+	recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0
+
+	if precision + recall > 0:
+		reward = 2 * (precision * recall) / (precision + recall)
 	
 	return reward
 
