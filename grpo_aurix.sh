@@ -12,16 +12,17 @@ model_path=Qwen/Qwen2.5-32B-Instruct
 train_files="['$aurix_train_path']"
 test_files="['$aurix_test_path']"
 
+negative_chunks=90
 batch_size=8
 ppo_batch_size=64
-input_length=32000
+input_length=120000
 output_length=4000
 max_length=$((input_length + output_length))
-ppo_max_token_len_per_gpu=$((max_length/2)) # Decrease if OOM
-log_prob_max_token_len_per_gpu=$((max_length/2)) # Decrease if OOM
+ppo_max_token_len_per_gpu=$((max_length / 4)) # Decrease if OOM
+log_prob_max_token_len_per_gpu=$((max_length / 4)) # Decrease if OOM
 ulysses_sequence_parallel_size=4 # Increase if OOM
 
-python3 -m examples.data_preprocess.aurix
+python3 -m examples.data_preprocess.aurix --negative_chunks=$negative_chunks
 
 rm -rf logs/
 mkdir -p logs/

@@ -24,9 +24,9 @@ def extract_ref_ids(answer):
 	return ref_ids
 
 
-def make_map_fn(split):
+def make_map_fn(split, negative_chunks):
 	def process_fn(example, idx):
-		retrieved_chunk_ids = [s for s in qc_data.get(example["question"], []) if s in all_data][:90]
+		retrieved_chunk_ids = [s for s in qc_data.get(example["question"], []) if s in all_data][:negative_chunks]
 		source_chunk_ids = [
 			s for s in all_data_similar[example["original_chunk_id"]] 
 			if s in all_data
@@ -69,6 +69,7 @@ if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--local_dir", default="data/")
 	parser.add_argument("--data_dir", default="data/")
+	parser.add_argument("--negative_chunks", default=95)
 	args = parser.parse_args()
 
 	data_source = "voltai/aurix"
@@ -92,7 +93,7 @@ if __name__ == "__main__":
 	
 	# Convert the list of dicts into a HuggingFace Dataset.
 	dataset = Dataset.from_list(qa_data)
-	dataset = dataset.map(function=make_map_fn("train"), with_indices=True)
+	dataset = dataset.map(function=make_map_fn("train", args.negative_chunks), with_indices=True)
 
 	# Split the dataset into train and test sets (95% train, 5% test)
 	dataset = dataset.train_test_split(test_size=0.05, train_size=0.95, seed=407, shuffle=True)
