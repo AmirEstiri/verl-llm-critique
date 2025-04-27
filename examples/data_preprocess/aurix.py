@@ -26,7 +26,7 @@ def extract_ref_ids(answer):
 
 def make_map_fn(split):
 	def process_fn(example, idx):
-		retrieved_chunk_ids = [s for s in qc_data.get(example["question"], []) if s in all_data][:5]
+		retrieved_chunk_ids = [s for s in qc_data.get(example["question"], []) if s in all_data][:90]
 		source_chunk_ids = [
 			s for s in all_data_similar[example["original_chunk_id"]] 
 			if s in all_data
@@ -57,7 +57,7 @@ def make_map_fn(split):
 				"index": idx,
 				"answer": example["answer"].strip(),
 				"question": example["question"],
-				"ref_ids": [chunk_id_mapping[chunk_id] for chunk_id in example["ref_chunk_ids"] if chunk_id in chunk_id_mapping],
+				"ref_ids": [str(chunk_id_mapping[chunk_id]) for chunk_id in example["ref_chunk_ids"] if chunk_id in chunk_id_mapping],
 				"ref_chunk_ids": example["ref_chunk_ids"]
 			}
 		}

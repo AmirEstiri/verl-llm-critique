@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+import asyncio
+import time
 from collections import defaultdict
 
 import torch
@@ -29,7 +30,34 @@ class NaiveRewardManager:
         self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
         self.compute_score = compute_score or _default_compute_score
         self.reward_fn_key = reward_fn_key
-        self.vllm_engine = None
+
+    async def get_scores(self, data: list):
+        tasks = []
+        for i in range(len(data)):
+            data_item = data[i]  # DataProtoItem
+            prompt_ids = data_item.batch["prompts"]
+            prompt_length = prompt_ids.shape[-1]
+            response_ids = data_item.batch["responses"]
+            valid_response_length = data_item.batch["attention_mask"][prompt_length:].sum()
+            valid_response_ids = response_ids[:valid_response_length]
+            response_str = self.tokenizer.decode(valid_response_ids, skip_special_tokens=True)
+            ground_truth = data_item.non_tensor_batch["extra_info"]["answer"]
+            data_source = data_item.non_tensor_batch[self.reward_fn_key]
+            extra_info = data_item.non_tensor_batch.get("extra_info", None)
+
+            tasks.append(
+                asyncio.create_task(
+                    self.compute_score(
+                        tokenizer=self.tokenizer,
+                        data_source=data_source,
+                        solution_str=response_str,
+                        ground_truth=ground_truth,
+                        extra_info=extra_info,
+                    )
+                )
+            )
+
+        return await asyncio.gather(*tasks)
 
     def __call__(self, data: DataProto, return_dict=False):
         """We will expand this function gradually based on the available datasets"""
@@ -43,42 +71,20 @@ class NaiveRewardManager:
 
         reward_tensor = torch.zeros_like(data.batch["responses"], dtype=torch.float32)
         reward_extra_info = defaultdict(list)
+        
         all_scores = {}
+        batch_scores = asyncio.run(
+            self.get_scores(data=data)
+        )
+
 
         for i in range(len(data)):
             data_item = data[i]  # DataProtoItem
-
             prompt_ids = data_item.batch["prompts"]
-
             prompt_length = prompt_ids.shape[-1]
-
-            valid_prompt_length = data_item.batch["attention_mask"][:prompt_length].sum()
-            # valid_prompt_ids = prompt_ids[-valid_prompt_length:]
-
-            response_ids = data_item.batch["responses"]
             valid_response_length = data_item.batch["attention_mask"][prompt_length:].sum()
-            valid_response_ids = response_ids[:valid_response_length]
 
-            # decode
-            # prompt_str = self.tokenizer.decode(valid_prompt_ids, skip_special_tokens=True)
-            response_str = self.tokenizer.decode(valid_response_ids, skip_special_tokens=True)
-
-            # ground_truth = data_item.non_tensor_batch["reward_model"]["ground_truth"]
-            ground_truth = data_item.non_tensor_batch["extra_info"]["answer"]
-
-            data_source = data_item.non_tensor_batch[self.reward_fn_key]
-
-            extra_info = data_item.non_tensor_batch.get("extra_info", None)
-
-            scores = self.compute_score(
-                tokenizer=self.tokenizer,
-                # vllm_engine=self.vllm_engine,
-                data_source=data_source,
-                solution_str=response_str,
-                ground_truth=ground_truth,
-                extra_info=extra_info,
-            )
-
+            scores = batch_scores[i]
             score = sum(scores.values())
             for k in scores.keys():
                 if k not in all_scores:

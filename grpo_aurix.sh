@@ -12,20 +12,19 @@ model_path=Qwen/Qwen2.5-32B-Instruct
 train_files="['$aurix_train_path']"
 test_files="['$aurix_test_path']"
 
-batch_size=2
+batch_size=8
 ppo_batch_size=64
-input_length=16000
+input_length=32000
 output_length=4000
 max_length=$((input_length + output_length))
-ppo_max_token_len_per_gpu=$((max_length/4)) # Decrease if OOM
-log_prob_max_token_len_per_gpu=$((max_length/4)) # Decrease if OOM
-ulysses_sequence_parallel_size=2 # Increase if OOM
+ppo_max_token_len_per_gpu=$((max_length/2)) # Decrease if OOM
+log_prob_max_token_len_per_gpu=$((max_length/2)) # Decrease if OOM
+ulysses_sequence_parallel_size=4 # Increase if OOM
 
 python3 -m examples.data_preprocess.aurix
 
-rm logs/answers.log
-rm logs/rewards.log
-rm logs/correctness.log
+rm -rf logs/
+mkdir -p logs/
 
 PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
@@ -57,6 +56,7 @@ PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.entropy_coeff=0 \
     actor_rollout_ref.actor.fsdp_config.param_offload=True \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
+    actor_rollout_ref.actor.use_torch_compile=True \
     actor_rollout_ref.rollout.temperature=0.2 \
     actor_rollout_ref.rollout.prompt_length=$input_length \
     actor_rollout_ref.rollout.response_length=$output_length \
@@ -64,9 +64,9 @@ PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.free_cache_engine=False \
     actor_rollout_ref.rollout.log_prob_use_dynamic_bsz=True \
     actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=$log_prob_max_token_len_per_gpu \
-    actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
+    actor_rollout_ref.rollout.tensor_model_parallel_size=4 \
     actor_rollout_ref.rollout.name=vllm \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.4 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
     actor_rollout_ref.rollout.enable_chunked_prefill=False \
     actor_rollout_ref.rollout.max_num_batched_tokens=$max_length \
     actor_rollout_ref.rollout.n=5 \
@@ -78,7 +78,7 @@ PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     trainer.logger=['console'] \
     trainer.project_name='verl_grpo_aurix' \
     trainer.experiment_name='qwen2_7b_qa_reasoning' \
-    trainer.n_gpus_per_node=2 \
+    trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \
     trainer.save_freq=20 \
     trainer.val_before_train=False \

@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-
+import time
 import re
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
@@ -30,23 +30,23 @@ def extract_ref_ids(answer):
 		ref_ids = re.findall(pattern, answer)
 	return ref_ids
 
-def all_reward_functions(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
+async def all_reward_functions(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	return {
-		"approximate_formatting": 1.0 * reward_output_approximate_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
-		"xml_tags_penalty": 1.0 * reward_output_xml_tags_penalty(tokenizer, data_source, solution_str, ground_truth, extra_info),
-		"exact_formatting": 2.0 * reward_output_exact_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
-		"references_formatting": 1.0 * reward_references_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
-		"references_correctness": 2.0 * reward_references_correctness(tokenizer, data_source, solution_str, ground_truth, extra_info),
-		"correctness": 5.0 * reward_answer_correctness_openai(tokenizer, data_source, solution_str, ground_truth, extra_info),
-		"length": 1.0 * reward_output_length(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"approximate_formatting": 1.0 * await reward_output_approximate_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"xml_tags_penalty": 1.0 * await reward_output_xml_tags_penalty(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"exact_formatting": 2.0 * await reward_output_exact_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"references_formatting": 1.0 * await reward_references_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"references_correctness": 2.0 * await reward_references_correctness(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"correctness": 5.0 * await reward_answer_correctness_openai(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"length": 1.0 * await reward_output_length(tokenizer, data_source, solution_str, ground_truth, extra_info),
 	}
 
 
-def reward_output_xml_tags_penalty(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
+async def reward_output_xml_tags_penalty(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	reward = 0.0
 	response = solution_str
 
-	allowed_tags = [reasoning_start, reasoning_end, solution_start, solution_end, highlight_start, highlight_end, "ref"]
+	allowed_tags = [reasoning_start, reasoning_end, solution_start, solution_end, "ref"]
 
 	# Extract all XML tags from the text
 	xml_tags = re.findall(r'<[^>]+>', response)
@@ -63,7 +63,7 @@ def reward_output_xml_tags_penalty(tokenizer, data_source, solution_str, ground_
 	return reward
 	
 
-def reward_output_approximate_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
+async def reward_output_approximate_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	reward = 0.0
 	response = solution_str
 	# Count how many keywords are seen - we penalize if too many!
@@ -75,7 +75,7 @@ def reward_output_approximate_formatting(tokenizer, data_source, solution_str, g
 	return reward
 
 
-def reward_output_exact_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
+async def reward_output_exact_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	match_format = re.compile(
 		rf"<think>.*?</think>\s*<answer>.*?</answer>", 
 		flags = re.MULTILINE | re.DOTALL
@@ -86,7 +86,7 @@ def reward_output_exact_formatting(tokenizer, data_source, solution_str, ground_
 	if match_format.search(response) is not None: reward = 1.0
 	return reward
 
-def reward_references_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
+async def reward_references_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	reward = 0.0
 	response = solution_str
 
@@ -112,7 +112,7 @@ def reward_references_formatting(tokenizer, data_source, solution_str, ground_tr
 	return reward
 
 
-def reward_references_correctness(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
+async def reward_references_correctness(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	reward = 0.0
 	response = solution_str
 	ref_ids = list(set(extract_ref_ids(response)))
@@ -140,7 +140,7 @@ def reward_references_correctness(tokenizer, data_source, solution_str, ground_t
 
 
 openai_scorer = ChatOpenAI(model="o3-mini", temperature=1.0).with_structured_output(CorrectnessScore)
-def reward_answer_correctness_openai(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
+async def reward_answer_correctness_openai(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	answer = solution_str
 	gt_answer = ground_truth
 
@@ -160,13 +160,13 @@ def reward_answer_correctness_openai(tokenizer, data_source, solution_str, groun
 		HumanMessagePromptTemplate.from_template("Groundtruth Answer: {gt_answer}\nAnswer: {answer}"),
 	])
 	pipeline = prompt | openai_scorer
-	response = pipeline.invoke({"gt_answer": gt_answer, "answer": answer})
+	response = await pipeline.ainvoke({"gt_answer": gt_answer, "answer": answer})
 	with open("logs/correctness.log", "a") as f:
 		f.write(str(response) + "\n")
 	return response.get("score", 0.0) / 4.0
 
 
-def reward_output_length(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
+async def reward_output_length(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	reward = 0.0
 	response = solution_str
 	
