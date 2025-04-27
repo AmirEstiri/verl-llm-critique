@@ -1,6 +1,6 @@
 from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
-
+import asyncio
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -25,7 +25,7 @@ class CorrectnessScore:
 	score: float
 
 openai_scorer = ChatOpenAI(model="o3-mini", temperature=1.0).with_structured_output(CorrectnessScore)
-def answer_correctness(answer, gt_answer):
+async def answer_correctness(answer, gt_answer):
 	# Extract the answer part
 	answer_pattern = r"<answer>\s*(.*?)\s*</answer>"
 	answer_match = re.search(answer_pattern, answer, re.DOTALL)
@@ -37,8 +37,8 @@ def answer_correctness(answer, gt_answer):
 		HumanMessagePromptTemplate.from_template("Groundtruth Answer: {gt_answer}\nAnswer: {answer}"),
 	])
 	pipeline = prompt | openai_scorer
-	response = pipeline.invoke({"gt_answer": gt_answer, "answer": answer})
-	return response.get("score", 0.0)
+	response = await pipeline.ainvoke({"gt_answer": gt_answer, "answer": answer})
+	return float(response.get("score", 0.0))
 
 eval_data = json.load(open("data/Neal-Simplified.json"))
 eval_chunks = json.load(open("data/Neal-Simplified_chunks.json"))
@@ -52,7 +52,9 @@ tokenizer = AutoTokenizer.from_pretrained(model_path)
 llm = LLM(
 	model=model_path,
 	tokenizer=model_path,
-    tensor_parallel_size=4
+    tensor_parallel_size=8,
+	gpu_memory_utilization=0.9,
+	enforce_eager=True
 )
 
 sampling_params = SamplingParams(
@@ -60,48 +62,56 @@ sampling_params = SamplingParams(
 	max_tokens=130000,
 )
 
+async def evalute_correctness(all_scores, batch):
+	questions = [sample["input"]["query"] for sample in batch]
+	gt_answers = [sample["expected"]["groundtruth_answer"] for sample in batch]
+	document_ids_list = [eval_chunks[question] for question in questions]
 
-scores = []
-for sample in tqdm(eval_data):
-	question = sample["input"]["query"]
-	gt_answer = sample["expected"]["groundtruth_answer"]
-	document_ids = eval_chunks[question]
-	print(f"Retrieved documents: {len(document_ids)}")
-
-	context = f"<question>{question}</question>" + "\n".join([f"<document id={doc_id}>{all_data[doc_id]}</document>" for doc_id in document_ids])
-	tokens = tokenizer.encode(context, truncation=True, max_length=120000)
-	context = tokenizer.decode(tokens)
+	contexts = [f"<question>{question}</question>" + "\n".join([f"<document id={doc_id}>{all_data[doc_id]}</document>" for doc_id in document_ids]) for question, document_ids in zip(questions, document_ids_list)]
+	tokens = [tokenizer.encode(context, truncation=True, max_length=120000) for context in contexts]
+	contexts = [tokenizer.decode(tokens) for tokens in tokens]
 
 	# Format input with system prompt and question
-	conversation = [
+	conversations = [[
 		{"role": "system", "content": SYSTEM_PROMPT},
 		{"role": "user", "content": context}
-	]
+	] for context in contexts]
 
 	# Generate the assistant’s reply:
-	chat_outputs = llm.chat(conversation, sampling_params=sampling_params)
-	answer = chat_outputs[0].outputs[0].text
+	chat_outputs = llm.chat(conversations, sampling_params=sampling_params)
+	answers = [chat_output.outputs[0].text for chat_output in chat_outputs]
 
 	# Extract the answer part
-	answer_pattern = r"<answer>\s*(.*?)\s*</answer>"
-	answer_match = re.search(answer_pattern, answer, re.DOTALL)
-	if answer_match:
-		answer = answer_match.group(1)
-	else:
-		answer_pattern = r"<answer>(.*?)$"
+	tasks = []
+	for answer, gt_answer in zip(answers, gt_answers):
+		answer_pattern = r"<answer>\s*(.*?)\s*</answer>"
 		answer_match = re.search(answer_pattern, answer, re.DOTALL)
 		if answer_match:
-			answer = answer_match.group(1)	    
+			answer = answer_match.group(1)
+		else:
+			answer_pattern = r"<answer>(.*?)$"
+			answer_match = re.search(answer_pattern, answer, re.DOTALL)
+			if answer_match:
+				answer = answer_match.group(1)
 
-	score = answer_correctness(answer, gt_answer)
+		tasks.append(asyncio.create_task(answer_correctness(answer, gt_answer)))
 	
-	scores.append({
-		"question": question,
-		"generated_response": answer,
-		"ground_truth": gt_answer,
-		"correctness": score
-	})
+	scores = await asyncio.gather(*tasks)
+	json.dump(all_scores + scores, open("evals/eval_grpo.json", "w"), indent=4)
+		
+	return [
+		{
+			"question": question,
+			"generated_response": answer,
+			"ground_truth": gt_answer,
+			"correctness": score
+		} for question, answer, gt_answer, score in zip(questions, answers, gt_answers, scores)
+	]
 
-	json.dump(scores, open("evals/eval_grpo.json", "w"), indent=4)
+batch_size = 50
+all_scores = []
+for i in range(0, len(eval_data), batch_size):
+	batch = eval_data[i:i+batch_size]
+	all_scores += asyncio.run(evalute_correctness(all_scores, batch))
 
-print(f"Average score for Qwen2.5-32B-Instruct: {sum([s['correctness'] for s in scores]) / len(scores)}")
+print(f"Average score for Qwen2.5-32B-Instruct: {sum([s['correctness'] for s in all_scores]) / len(all_scores)}")

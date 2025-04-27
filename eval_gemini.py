@@ -29,7 +29,7 @@ def answer_correctness(answer, gt_answer):
 	])
 	pipeline = prompt | openai_scorer
 	response = pipeline.invoke({"gt_answer": gt_answer, "answer": answer})
-	return response.get("score", 0.0)
+	return float(response.get("score", 0.0))
 
 eval_data = json.load(open("data/Neal-Simplified.json"))
 eval_chunks = json.load(open("data/Neal-Simplified_chunks.json"))
