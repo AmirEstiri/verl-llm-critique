@@ -1,11 +1,12 @@
 import os
-import glob
 import json
 import re
 from tqdm import tqdm
 from dotenv import load_dotenv
 
 load_dotenv()
+
+os.makedirs("evals", exist_ok=True)
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
@@ -42,6 +43,7 @@ for sample in tqdm(eval_data):
 	gt_answer = sample["expected"]["groundtruth_answer"]
 	document_ids = eval_chunks[question]
 
+	print(f"Retrieved documents: {len(document_ids)}")
 	documents = "\n".join([f"<document id={doc_id}>{all_data[doc_id]}</document>" for doc_id in document_ids])
 	prompt = ChatPromptTemplate.from_messages([
 		SystemMessagePromptTemplate.from_template(SYSTEM_PROMPT),

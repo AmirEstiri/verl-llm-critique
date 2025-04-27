@@ -17,6 +17,8 @@ from langchain_openai import ChatOpenAI
 
 from dataclasses import dataclass
 
+os.makedirs("evals", exist_ok=True)
+
 @dataclass
 class CorrectnessScore:
 	analysis: str
@@ -43,7 +45,7 @@ eval_chunks = json.load(open("data/Neal-Simplified_chunks.json"))
 all_data = json.load(open("data/all_data.json"))
 
 # Initialize tokenizer and model
-model_path = "Qwen/Qwen2-7B-Instruct"
+model_path = "Qwen/Qwen2.5-32B-Instruct"
 checkpoint_dir = "/root/verl-llm-critique/checkpoints/verl_grpo_aurix/qwen2_7b_qa_reasoning/hf_80"
 tokenizer = AutoTokenizer.from_pretrained(model_path)
 
@@ -54,8 +56,7 @@ llm = LLM(
 )
 
 sampling_params = SamplingParams(
-	temperature=0.1,
-	repetition_penalty=1.05,
+	temperature=0.2,
 	max_tokens=130000,
 )
 
@@ -65,6 +66,7 @@ for sample in tqdm(eval_data):
 	question = sample["input"]["query"]
 	gt_answer = sample["expected"]["groundtruth_answer"]
 	document_ids = eval_chunks[question]
+	print(f"Retrieved documents: {len(document_ids)}")
 
 	context = f"<question>{question}</question>" + "\n".join([f"<document id={doc_id}>{all_data[doc_id]}</document>" for doc_id in document_ids])
 	tokens = tokenizer.encode(context, truncation=True, max_length=120000)
@@ -102,4 +104,4 @@ for sample in tqdm(eval_data):
 
 	json.dump(scores, open("evals/eval_grpo.json", "w"), indent=4)
 
-print(f"Average score for Qwen2-7B-Instruct: {sum([s['correctness'] for s in scores]) / len(scores)}")
+print(f"Average score for Qwen2.5-32B-Instruct: {sum([s['correctness'] for s in scores]) / len(scores)}")
