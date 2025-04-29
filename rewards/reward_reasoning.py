@@ -32,13 +32,13 @@ def extract_ref_ids(answer):
 
 async def all_reward_functions(tokenizer, data_source, solution_str, ground_truth, extra_info=None):
 	return {
-		"approximate_formatting": 1.0 * await reward_output_approximate_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
-		"xml_tags_penalty": 1.0 * await reward_output_xml_tags_penalty(tokenizer, data_source, solution_str, ground_truth, extra_info),
-		"exact_formatting": 2.0 * await reward_output_exact_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
-		"references_formatting": 1.0 * await reward_references_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
-		"references_correctness": 2.0 * await reward_references_correctness(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"approximate_formatting": 0.25 * await reward_output_approximate_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"xml_tags_penalty": 0.25 * await reward_output_xml_tags_penalty(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"exact_formatting": 0.5 * await reward_output_exact_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"references_formatting": 0.25 * await reward_references_formatting(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"references_correctness": 1.0 * await reward_references_correctness(tokenizer, data_source, solution_str, ground_truth, extra_info),
 		"correctness": 5.0 * await reward_answer_correctness_openai(tokenizer, data_source, solution_str, ground_truth, extra_info),
-		"length": 1.0 * await reward_output_length(tokenizer, data_source, solution_str, ground_truth, extra_info),
+		"length": 0.25 * await reward_output_length(tokenizer, data_source, solution_str, ground_truth, extra_info),
 	}
 
 

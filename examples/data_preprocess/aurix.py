@@ -69,7 +69,7 @@ if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--local_dir", default="data/")
 	parser.add_argument("--data_dir", default="data/")
-	parser.add_argument("--negative_chunks", default=95)
+	parser.add_argument("--negative_chunks", default=95, type=int)
 	args = parser.parse_args()
 
 	data_source = "voltai/aurix"

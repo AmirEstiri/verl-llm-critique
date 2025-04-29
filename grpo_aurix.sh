@@ -9,6 +9,8 @@ aurix_test_path=data/test.parquet
 # model_path=Qwen/Qwen2-7B-Instruct
 model_path=Qwen/Qwen2.5-32B-Instruct
 
+python3 extend_model_context.py --model_path=$model_path
+
 train_files="['$aurix_train_path']"
 test_files="['$aurix_test_path']"
 
