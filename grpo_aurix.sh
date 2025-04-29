@@ -6,15 +6,25 @@ export VLLM_ATTENTION_BACKEND=XFORMERS
 aurix_train_path=data/train.parquet
 aurix_test_path=data/test.parquet
 
+# Prepare base model
 # model_path=Qwen/Qwen2-7B-Instruct
 model_path=Qwen/Qwen2.5-32B-Instruct
-
 python3 extend_model_context.py --model_path=$model_path
 
+# Prepare training data
+qa_model="gemini"
+negative_chunks=90
+python3 -m examples.data_preprocess.aurix --negative_chunks=$negative_chunks --qa_model=$qa_model
+
+# Remove previous logs
+rm -rf logs/
+mkdir -p logs/
+
+# Prepare training files
 train_files="['$aurix_train_path']"
 test_files="['$aurix_test_path']"
 
-negative_chunks=90
+# Prepare training parameters
 batch_size=8
 ppo_batch_size=64
 input_length=120000
@@ -24,11 +34,7 @@ ppo_max_token_len_per_gpu=$((max_length / 4)) # Decrease if OOM
 log_prob_max_token_len_per_gpu=$((max_length / 4)) # Decrease if OOM
 ulysses_sequence_parallel_size=4 # Increase if OOM
 
-python3 -m examples.data_preprocess.aurix --negative_chunks=$negative_chunks
-
-rm -rf logs/
-mkdir -p logs/
-
+# Run training
 PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
     algorithm.use_kl_in_reward=False \

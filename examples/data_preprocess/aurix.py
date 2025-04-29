@@ -24,8 +24,14 @@ def extract_ref_ids(answer):
 	return ref_ids
 
 
-def make_map_fn(split, negative_chunks):
+def make_map_fn(split, negative_chunks, qa_model):
 	def process_fn(example, idx):
+		if qa_model == "gemini":
+			answer_field = "answer_gemini"
+		elif qa_model == "openai":
+			answer_field = "answer"
+		else:
+			raise ValueError(f"Invalid qa_model: {qa_model}")
 		retrieved_chunk_ids = [s for s in qc_data.get(example["question"], []) if s in all_data][:negative_chunks]
 		source_chunk_ids = [
 			s for s in all_data_similar[example["original_chunk_id"]] 
@@ -55,7 +61,7 @@ def make_map_fn(split, negative_chunks):
 			"extra_info": {
 				"split": split,
 				"index": idx,
-				"answer": example["answer"].strip(),
+				"answer": example[answer_field].strip(),
 				"question": example["question"],
 				"ref_ids": [str(chunk_id_mapping[chunk_id]) for chunk_id in example["ref_chunk_ids"] if chunk_id in chunk_id_mapping],
 				"ref_chunk_ids": example["ref_chunk_ids"]
@@ -70,10 +76,11 @@ if __name__ == "__main__":
 	parser.add_argument("--local_dir", default="data/")
 	parser.add_argument("--data_dir", default="data/")
 	parser.add_argument("--negative_chunks", default=95, type=int)
+	parser.add_argument("--qa_model", default="gemini")
 	args = parser.parse_args()
 
 	data_source = "voltai/aurix"
-	qa_data = json.load(open(os.path.join(args.data_dir, "openai_qa_data.json")))
+	qa_data = json.load(open(os.path.join(args.data_dir, f"{args.qa_model}_qa_data.json")))
 	qc_data = json.load(open(os.path.join(args.data_dir, "qc_data.json")))
 	all_data = json.load(open(os.path.join(args.data_dir, "all_data.json")))
 	all_data_similar = json.load(open(os.path.join(args.data_dir, "all_data_similar.json")))	
@@ -93,7 +100,7 @@ if __name__ == "__main__":
 	
 	# Convert the list of dicts into a HuggingFace Dataset.
 	dataset = Dataset.from_list(qa_data)
-	dataset = dataset.map(function=make_map_fn("train", args.negative_chunks), with_indices=True)
+	dataset = dataset.map(function=make_map_fn("train", args.negative_chunks, args.qa_model), with_indices=True)
 
 	# Split the dataset into train and test sets (95% train, 5% test)
 	dataset = dataset.train_test_split(test_size=0.05, train_size=0.95, seed=407, shuffle=True)
