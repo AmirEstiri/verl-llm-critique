@@ -8,7 +8,7 @@ aurix_test_path=data/test.parquet
 
 # Prepare base model
 # model_path=Qwen/Qwen2-7B-Instruct
-model_path=Qwen/Qwen2.5-32B-Instruct
+model_path=Qwen/Qwen2.5-14B-Instruct
 python3 extend_model_context.py --model_path=$model_path
 
 # Prepare training data
@@ -66,7 +66,7 @@ PYTHONPATH=/opt/tiger/open_verl python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.fsdp_config.param_offload=True \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
     actor_rollout_ref.actor.use_torch_compile=True \
-    actor_rollout_ref.rollout.temperature=0.2 \
+    actor_rollout_ref.rollout.temperature=0.5 \
     actor_rollout_ref.rollout.prompt_length=$input_length \
     actor_rollout_ref.rollout.response_length=$output_length \
     actor_rollout_ref.rollout.enforce_eager=False \

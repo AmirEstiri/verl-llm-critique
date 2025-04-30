@@ -27,7 +27,7 @@ def extract_ref_ids(answer):
 def make_map_fn(split, negative_chunks, qa_model):
 	def process_fn(example, idx):
 		if qa_model == "gemini":
-			answer_field = "answer_gemini"
+			answer_field = "gemini_answer"
 		elif qa_model == "openai":
 			answer_field = "answer"
 		else:

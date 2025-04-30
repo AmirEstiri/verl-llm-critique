@@ -26,19 +26,23 @@ class CorrectnessScore:
 
 openai_scorer = ChatOpenAI(model="o3-mini", temperature=1.0).with_structured_output(CorrectnessScore)
 async def answer_correctness(answer, gt_answer):
-	# Extract the answer part
-	answer_pattern = r"<answer>\s*(.*?)\s*</answer>"
-	answer_match = re.search(answer_pattern, answer, re.DOTALL)
-	if answer_match:
-		answer = answer_match.group(1)
+	try:
+		# Extract the answer part
+		answer_pattern = r"<answer>\s*(.*?)\s*</answer>"
+		answer_match = re.search(answer_pattern, answer, re.DOTALL)
+		if answer_match:
+			answer = answer_match.group(1)
 
-	prompt = ChatPromptTemplate.from_messages([
-		SystemMessagePromptTemplate.from_template(EVAL_CORRECTNESS_PROMPT),
-		HumanMessagePromptTemplate.from_template("Groundtruth Answer: {gt_answer}\nAnswer: {answer}"),
-	])
-	pipeline = prompt | openai_scorer
-	response = await pipeline.ainvoke({"gt_answer": gt_answer, "answer": answer})
-	return float(response.get("score", 0.0))
+		prompt = ChatPromptTemplate.from_messages([
+			SystemMessagePromptTemplate.from_template(EVAL_CORRECTNESS_PROMPT),
+			HumanMessagePromptTemplate.from_template("Groundtruth Answer: {gt_answer}\nAnswer: {answer}"),
+		])
+		pipeline = prompt | openai_scorer
+		response = await pipeline.ainvoke({"gt_answer": gt_answer, "answer": answer})
+		return float(response.get("score", 0.0))
+	except Exception as e:
+		print("Error in answer_correctness:", e)
+		return 0.0
 
 eval_data = json.load(open("data/Neal-Simplified.json"))
 eval_chunks = json.load(open("data/Neal-Simplified_chunks.json"))
@@ -108,7 +112,7 @@ async def evalute_correctness(all_scores, batch):
 		} for question, answer, gt_answer, score in zip(questions, answers, gt_answers, scores)
 	]
 
-batch_size = 50
+batch_size = 100
 all_scores = []
 for i in range(0, len(eval_data), batch_size):
 	batch = eval_data[i:i+batch_size]

@@ -6,7 +6,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--model_path", type=str, default="Qwen/Qwen2.5-14B-Instruct")
 args = parser.parse_args()
 
-path = f"/root/.cache/huggingface/hub/models--{args.model_path.replace("/", "--")}/snapshots"
+path = f"/root/.cache/huggingface/hub/models--{args.model_path.replace('/', '--')}/snapshots"
 
 # Find the actual snapshot subdirectory within the path
 subdirs = [d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]

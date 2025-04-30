@@ -23,5 +23,10 @@ Path to config file: `~/.cache/huggingface/hub/models--*/snapshots/*/config.json
 7. Run evaluation on sample eval dataset: `python3 eval.py`  
 For baseline, run `python3 eval_gemini.py` to get gemini numbers.  
 
+8. Results on golden Eval dataset:  
+Gemini-2.5-Pro: 70%  
+Qwen/Qwen2.5-14B-Instruct: 45.3%  
+Qwen/Qwen2.5-32B-Instruct: 45.1%  
+
 ## TODOs 
 Enable LoRA
